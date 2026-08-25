@@ -472,7 +472,7 @@ Paths fall back to beside the script, so a plain checkout works with no
 arguments:
 
 ```bash
-cd modules/system/media-tracker
+git clone https://github.com/neburion/media-tracker && cd media-tracker
 python3 seed.py && python3 app.py --open   # 127.0.0.1:8778, db in this directory
 python3 app.py --stats                     # print the shelf and exit
 python3 app.py --warm-covers
@@ -507,7 +507,7 @@ HTTP Basic Auth, on whenever a password is present — the systemd credential
 `secrets/personal-server.yaml`) or `$RT_PASSWORD`. Without one the app refuses
 to bind anything but loopback, so a misconfigured deploy fails to start rather
 than putting a writable API on the network. The username is `tracker` and lives
-in `service.nix`, since it is not a secret. Failed attempts are rate-limited to
+in `app.json` as `MT_USERNAME`, since it is not a secret. Failed attempts are rate-limited to
 20 per hour per client IP, read from `CF-Connecting-IP` so the tunnel does not
 bucket the whole internet into one key.
 
