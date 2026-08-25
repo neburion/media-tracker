@@ -1,0 +1,7 @@
+# State, not source. The database and the cover cache live in $STATE_DIR on the
+# host (/var/lib/media-tracker) and beside this file when run from a checkout.
+media.db
+media.db-wal
+media.db-shm
+covers/
+.cache/

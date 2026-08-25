@@ -1,0 +1,34 @@
+{
+  "name": "media-tracker",
+  "summary": "Reading, watching and playing — one shelf, SQLite, no framework",
+  "runtime": "python3",
+  "preStart": "seed.py",
+  "run": "app.py",
+  "port": 8778,
+  "urls": [
+    "media.azuresalt.app",
+    "reading.azuresalt.app"
+  ],
+  "state": true,
+  "secrets": [
+    "password"
+  ],
+  "env": {
+    "MT_HOST": "0.0.0.0",
+    "MT_PORT": "$PORT",
+    "MT_USERNAME": "tracker",
+    "MT_DB": "$STATE_DIR/media.db",
+    "MT_CACHE": "$STATE_DIR"
+  },
+  "timers": [
+    {
+      "name": "covers",
+      "description": "Warm the media tracker's cover cache",
+      "run": "app.py --warm-covers",
+      "timer": {
+        "OnBootSec": "3min",
+        "OnUnitActiveSec": "1w"
+      }
+    }
+  ]
+}
