@@ -1,13 +1,12 @@
 {
   "name": "media-tracker",
-  "summary": "Two trackers, reading and watching \u2014 SQLite, no framework",
+  "summary": "Two trackers, reading and watching. SQLite, no framework",
   "runtime": "python3",
   "preStart": "seed.py",
   "run": "app.py",
   "port": 8778,
   "urls": [
-    "media.azuresalt.app",
-    "reading.azuresalt.app"
+    "media.azuresalt.app"
   ],
   "state": true,
   "secrets": [

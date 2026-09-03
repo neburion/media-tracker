@@ -215,10 +215,8 @@ h1{font-size:16px;font-weight:600;margin:0;
    So the app opens on neither, and you walk into one. */
 .hall{min-height:calc(100dvh - 170px);display:flex;flex-direction:column;
   align-items:center;justify-content:center;gap:34px;padding:20px 0 40px}
-.mast{text-align:center;display:flex;flex-direction:column;gap:7px}
 .mast b{font-family:Lit,Georgia,serif;font-size:34px;font-weight:600;
   letter-spacing:-.025em;line-height:1}
-.mast span{font-size:13px;color:var(--ink-3)}
 /* An explicit width, because auto-fit inside a shrink-to-fit flex item
    resolves to one column and stacks the two doors into a list. */
 .portal{display:grid;gap:22px;width:min(100%,640px);
@@ -232,8 +230,6 @@ h1{font-size:16px;font-weight:600;margin:0;
 .door b{font-family:Lit,Georgia,serif;font-size:27px;font-weight:600;
   letter-spacing:-.02em;line-height:1}
 .door span{font-size:13px;color:var(--ink-3)}
-.door em{font-style:normal;font-family:Mono,monospace;font-size:12px;
-  color:var(--a11);letter-spacing:.02em}
 @media (max-width:640px){
   .hall{min-height:calc(100dvh - 120px);gap:26px;
     padding:8px max(14px,env(safe-area-inset-left)) 30px;align-items:stretch}
@@ -460,7 +456,7 @@ main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
 .stepper button:hover{border-color:var(--g8);color:var(--ink)}
 .stars{display:flex;align-items:center;gap:10px}
 .stars input[type=range]{flex:1;accent-color:var(--a9);height:38px;min-width:0}
-.stars output{font-family:Mono,monospace;font-size:17px;width:44px;text-align:right}
+.stars output{font-family:Mono,monospace;font-size:17px;width:58px;text-align:right}
 .picks{display:flex;flex-wrap:wrap;gap:6px}
 .pick{height:34px;padding:0 14px;border:1px solid var(--rule);background:var(--paper);
   border-radius:var(--r-md);font-size:13px;color:var(--ink-2)}
@@ -591,8 +587,8 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
     <button class="ico out" data-act="home" title="Both trackers" aria-label="Both trackers"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
     <h1 id="h1">Media Tracker</h1>
     <div class="tally">
-      <span><b id="t-count">—</b> <i>titles</i></span>
-      <span><b id="t-ch">—</b> <i id="t-ch-word">chapters</i></span>
+      <span><b id="t-count">0</b> <i>titles</i></span>
+      <span><b id="t-ch">0</b> <i id="t-ch-word">chapters</i></span>
     </div>
     <button class="ico" data-act="filter" title="Filters" aria-label="Filters"><svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg></button>
     <button class="ico" data-view="stats" title="Statistics" aria-label="Statistics"><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></button>
@@ -810,7 +806,7 @@ function fillPickers(){
   $('#f-sort').value = S.sort;
 
   // No Kind menu on the add dialog: he is standing in one.
-  $('#n-type').innerHTML = '<option value="">—</option>' +
+  $('#n-type').innerHTML = '<option value="">None</option>' +
     typeNames(S.kind).map(v => `<option>${esc(v)}</option>`).join('');
   $('#n-status').innerHTML = m.status
     .map(v => `<option${v === 'Later' ? ' selected' : ''}>${esc(v)}</option>`).join('');
@@ -850,7 +846,7 @@ function render(){
   // shelf with no rows.
   const inside = !!S.kind;
   $('#head').hidden = $('#dock').hidden = $('#fab').hidden = !inside;
-  document.title = inside ? `${S.kind} — Media Tracker` : 'Media Tracker';
+  document.title = inside ? `${S.kind} · Media Tracker` : 'Media Tracker';
   if (!inside) return renderPortal();
 
   const st = S.data.stats[S.kind] || { total:0, units:0, byStatus:[] };
@@ -892,14 +888,12 @@ function render(){
 
 function renderPortal(){
   $('#main').innerHTML = `<div class="hall">
-    <div class="mast"><b>Media Tracker</b><span>Two shelves. Pick one.</span></div>
+    <div class="mast"><b>Media Tracker</b></div>
     <div class="portal">${S.data.meta.kind.map(k => {
-    const st = S.data.stats[k] || { total:0, byStatus:[] };
-    const cur = (st.byStatus || []).find(r => r.name === 'Current');
+    const st = S.data.stats[k] || { total:0 };
     return `<button class="door" data-door="${esc(k)}">
       <b>${esc(k)}</b>
       <span>${st.total} ${st.total === 1 ? 'title' : 'titles'}</span>
-      <em>${cur ? `${cur.count} on the go` : 'nothing on the go'}</em>
     </button>`;
   }).join('')}</div>
   </div>`;
@@ -973,7 +967,7 @@ function renderStats(st){
         <div class="fig"><b>${st.units.toLocaleString()}</b>
           <span>${esc(TALLY_WORD[S.kind] || 'units')}</span></div>
         ${st.done ? `<div class="fig"><b>${st.done}</b><span>films watched</span></div>` : ''}
-        <div class="fig"><b>${st.avg ?? '—'}</b><span>mean rating</span></div>
+        <div class="fig"><b>${st.avg ?? 'None'}</b><span>mean rating</span></div>
       </div>
     </div>
     ${slab('By shelf', st.byStatus, 'tone')}
@@ -1017,11 +1011,11 @@ function progressField(s, type){
       <div class="stepper">
         <button data-step="-1" aria-label="Back one ${esc(word.toLowerCase())}">−</button>
         <input type="number" id="e-chapter" inputmode="numeric" min="0"
-               value="${s.chapter === null ? '' : esc(fmt(s.chapter))}" placeholder="—">
+               value="${s.chapter === null ? '' : esc(fmt(s.chapter))}" placeholder="not started">
         <button data-step="1" aria-label="On one ${esc(word.toLowerCase())}">+</button>
       </div>` + (s.kind !== 'Reading' ? '' : `
       <div class="field" style="margin:12px 0 0">
-        <span class="lbl">Tome — optional</span>
+        <span class="lbl">Tome</span>
         <div class="stepper">
           <button data-tome="-1" aria-label="Back one tome">−</button>
           <input type="number" id="e-tome" inputmode="numeric" min="0"
@@ -1074,13 +1068,13 @@ function openSheet(id){
         <div class="stars">
           <input type="range" id="e-rating" min="0" max="10" step="0.5"
                  value="${s.rating ?? 0}">
-          <output id="e-rating-out">${s.rating === null ? '—' : esc(fmt(s.rating))}</output>
+          <output id="e-rating-out">${s.rating === null ? 'None' : esc(fmt(s.rating))}</output>
           <button class="pick" id="e-rating-clear">Clear</button>
         </div>
       </div>
 
       <div class="field">
-        <span class="lbl">Shelf — where you are with it</span>
+        <span class="lbl">Shelf</span>
         <div class="picks">${picks('status', m.status, s.status)}</div>
       </div>
 
@@ -1095,12 +1089,12 @@ function openSheet(id){
       </div>
 
       <div class="field">
-        <span class="lbl">Setting — where it takes place</span>
+        <span class="lbl">Setting</span>
         <div class="picks many" id="e-setting">${many('setting', s.setting)}</div>
       </div>
 
       <div class="field">
-        <span class="lbl">Genre — what it feels like</span>
+        <span class="lbl">Genre</span>
         <div class="picks many" id="e-genre">${many('genre', s.genre)}</div>
       </div>
 
@@ -1158,7 +1152,7 @@ async function saveSheet(){
     chapter: watched ? (watched.dataset.watched === '1' ? 1 : null)
                      : num($('#e-chapter')),
     tome:    num($('#e-tome')),
-    rating:  $('#e-rating-out').textContent === '—' ? null : Number($('#e-rating').value),
+    rating:  $('#e-rating-out').textContent === 'None' ? null : Number($('#e-rating').value),
     status:  $('#sheet [data-status][aria-pressed=true]')?.dataset.status || '',
     pub:     $('#sheet [data-pub][aria-pressed=true]')?.dataset.pub || '',
     type:    $('#sheet [data-type][aria-pressed=true]')?.dataset.type || '',
@@ -1173,7 +1167,7 @@ async function saveSheet(){
     const r = await api('/api/update', { id, fields });
     closeSheet();
     await load();
-    toast(r.changed.length ? `Saved — ${r.changed.join(', ')}` : 'Nothing changed');
+    toast(r.changed.length ? `Saved: ${r.changed.join(', ')}` : 'Nothing changed');
   } catch (e) { toast(e.message); }
 }
 
@@ -1205,7 +1199,7 @@ async function artSearch(reset){
         <em>${i.w}×${i.h}</em>
       </button>`).join(''));
     const n = box.children.length;
-    note.textContent = n ? `${n} results — click one` : 'Nothing that looked like cover art.';
+    note.textContent = n ? `${n} results, click one` : 'Nothing that looked like cover art.';
   } catch (e){ note.textContent = e.message; }
 }
 
@@ -1238,7 +1232,7 @@ async function bump(id){
     // "chapter 1" on a film is the sentence that made this whole field wrong.
     const said = once ? 'watched'
       : `${(PROGRESS_LABEL[now.kind] || 'progress').toLowerCase()} ${fmt(now.chapter)}`;
-    toast(`${now.title} — ${said}${moved ? ` · moved to ${now.status}` : ''}`,
+    toast(`${now.title}: ${said}${moved ? ` · moved to ${now.status}` : ''}`,
       { label:'Undo', run: async () => {
           try { await api('/api/update', { id: s.id, fields: before }); await load();
                 toast('Put back'); }
@@ -1276,7 +1270,7 @@ document.addEventListener('click', async ev => {
     for (const el of document.querySelectorAll('.shot.on')) el.classList.remove('on');
     shot.classList.add('on');
     closeArt();
-    toast('Cover chosen — Save to keep it');
+    toast('Cover chosen. Save to keep it');
     return;
   }
 
@@ -1287,7 +1281,7 @@ document.addEventListener('click', async ev => {
     // The slider still cannot express "unrated": 0 is a real score. So the
     // output element carries that state and Clear puts it back.
     $('#e-rating').value = 0;
-    $('#e-rating-out').textContent = '—';
+    $('#e-rating-out').textContent = 'None';
     return;
   }
 

@@ -271,7 +271,7 @@ def _bucket(db, table, column, kind_id):
         f"SELECT COUNT(*) FROM series WHERE {column} IS NULL AND kind_id = ?",
         (kind_id,)).fetchone()[0]
     if orphan:
-        out.append({"name": "—", "count": orphan})
+        out.append({"name": "None", "count": orphan})
     return out
 
 

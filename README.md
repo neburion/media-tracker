@@ -11,14 +11,15 @@ with are all filed under `Reading` and why the progress column in the database
 is still called `chapter`.
 
 Deployed from `app.json` on `personal-server`: **http://personal-server:8778**
-on the tailnet, and publicly at **https://media.azuresalt.app** — and at
-**https://reading.azuresalt.app**, which is the same service on a second tunnel
-rather than a redirect, because a redirect would land on a hostname the saved
-Basic Auth credential is not scoped to and ask for the password every visit.
-The NixOS config reads `app.json` out of this repo and generates the unit,
-the system user, the state directory, the credential wiring, the firewall rule
-and both tunnels from it — see `modules/system/services/app-platform/` there. There
-is no Nix in this repo, and there does not need to be.
+on the tailnet, and publicly at **https://media.azuresalt.app**.
+
+`reading.azuresalt.app` used to be a second tunnel onto the same service, from
+when this was only a reading tracker. It was one name too many for one app, and
+it is gone — tunnel and DNS record deleted, not just unwired. The NixOS config
+reads `app.json` out of this repo and generates the unit, the system user, the
+state directory, the credential wiring, the firewall rule and the tunnel from
+it — see `modules/system/services/app-platform/` there. There is no Nix in this
+repo, and there does not need to be.
 
 944 series, 939 of them Reading. 300 came from the **Reading-Ob** Obsidian
 vault on pod042; the other 617 from an Anime-Planet export (`export-manga-Jacine0520.json`) of an
@@ -28,7 +29,7 @@ older account, imported 2026-08-17. Both are snapshots — see below.
 
 | file | what it is |
 |---|---|
-| `app.json` | what this asks the host for: a port, two URLs, a secret, a state directory |
+| `app.json` | what this asks the host for: a port, a URL, a secret, a state directory |
 | `fonts/` | the webfonts, as woff2 — self-hosted, so a checkout looks like the deploy |
 | `schema.sql` | tables, views, FTS5 index |
 | `seed.json` | the origin snapshot: 300 vault series + 617 from Anime-Planet |
@@ -587,7 +588,7 @@ secret invalidates every outstanding cookie, which is also the way to force a
 logout everywhere. `Secure` is set only when the request arrived over HTTPS, so
 the same cookie works on the plain-HTTP tailnet address.
 
-Three layers gate `reading.azuresalt.app`, and two of them are set by hand:
+Three layers gate `media.azuresalt.app`, and two of them are set by hand:
 
 1. **Cloudflare Access policy** — dashboard only, *not* managed by cf-reconcile,
    so it can silently go missing.
