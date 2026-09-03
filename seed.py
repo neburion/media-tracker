@@ -51,6 +51,10 @@ APFILE = Path(os.environ.get("MT_ANIME_PLANET") or HERE / "anime-planet.json")
 VERIFIED = Path(os.environ.get("MT_VERIFIED") or HERE / "verified.json")
 SCHEMA = Path(os.environ.get("MT_SCHEMA") or HERE / "schema.sql")
 
+# What v_series joins a series' settings and genres with. Unit separator,
+# because no title or vocabulary word can contain one.
+SEP = "\x1f"
+
 # Presentation order for the three closed vocabularies.
 #
 # `pub` has no Hold. Hold is a shelf — it says you stopped reading — and it
@@ -67,46 +71,64 @@ VOCAB = {
     "pub": ["Ongoing", "Hiatus", "Completed", "Cancelled"],
 }
 
-# The kinds, and what progress counts for each. Three verbs, because that is
-# how many ways there are to be partway through something here.
+# The two trackers, and what progress counts inside each. The app opens on a
+# choice between them and everything after that happens inside one, so this is
+# not a filter and never appears as a menu — it is the door you walked through.
 #
 # Anime, Shows and Films were three kinds for one activity. Nothing about the
 # shelf below them differed — same statuses, same ratings, same tags, same
 # episode counter twice over — so the split bought a filter that answered a
-# question nobody was asking and made "is this an anime film or a film" a
-# thing to decide before typing a title. What the thing *is* still lives on
-# `type`, which is where a distinction belongs when it is one.
+# question nobody was asking and made "is this an anime film or a film" a thing
+# to decide before typing a title. What the thing *is* lives on `type`, which
+# is where a distinction belongs when it is one.
+#
+# Playing is gone with the games it held. One playthrough was ever filed under
+# it, games have their own tracker, and a third door onto a shelf of one is a
+# door you press past every time you open the app.
 KINDS = [
     ("Reading", "ch"),
     ("Watching", "ep"),
-    ("Playing", "hrs"),
 ]
 
-# Types, per kind. One flat list would put Manhwa and OVA and PC in the same
-# menu, which is the mistake the 59-tag pile made.
+# Types, per kind, each with how you are partway through it: '' if you count in
+# the kind's unit, 'once' if you do not count at all.
 #
-# Watching keeps every distinction the three kinds used to carry, one level
-# down: a film is a Film whether it was animated or not. `Movie` is gone
-# because it was the same word as Film wearing an anime badge.
+# Watching used to carry nine of these — TV, Series, Miniseries, Film, Short,
+# OVA, ONA, Special, Documentary — which is a taxonomy of broadcast formats,
+# not of things you watch. Four words cover it: whether it is animated, and
+# whether it has episodes. A film is watched or it is not, which is why Movie
+# and Animated Movie count nothing; "episode 1 of a movie" was always a lie the
+# counter told because the counter belonged to the kind.
 TYPES = {
-    "Reading": ["Manhwa", "Manhua", "Manga", "Web Novel", "Indonesian Comic"],
-    "Watching": ["TV", "Series", "Miniseries", "Film", "Short",
-                 "OVA", "ONA", "Special", "Documentary"],
-    "Playing": ["PC", "Console", "Handheld", "Mobile"],
+    "Reading": [("Manhwa", ""), ("Manhua", ""), ("Manga", ""),
+                ("Web Novel", ""), ("Indonesian Comic", "")],
+    "Watching": [("Show", ""), ("Anime", ""),
+                 ("Movie", "once"), ("Animated Movie", "once")],
 }
 
-# The tag vocabulary, on two axes.
+# Watching types the four above replaced. Retired by name in migrate(), and
+# only where nothing is filed under them — retyping somebody's library is not
+# a rename.
+RETIRED_TYPES = ["TV", "Miniseries", "Short", "OVA", "ONA", "Special",
+                 "Documentary", "PC", "Console", "Handheld", "Mobile"]
+
+# Setting and Genre — the two fields that replaced a tag box.
 #
-# This replaces a flat pile of 59 hand-written tags in which `Fantasy` (half the
-# shelf), `Transmigrassion` (a typo, 109 series) and `Boxing` (one series) were
-# peers in one alphabetical menu. Every tag now answers exactly one question:
+# This started as a flat pile of 59 hand-written tags in which `Fantasy` (half
+# the shelf), `Transmigrassion` (a typo, 109 series) and `Boxing` (one series)
+# were peers in one alphabetical menu. Splitting them onto two axes is what made
+# them into fields: every word answers exactly one question,
 #
 #   setting  where does it take place
-#   genre    what does reading it feel like
+#   genre    what does it feel like
 #
-# Which is what makes the difference between a tag list and a filter: the two
-# menus hold different kinds of thing, so choosing from both is a narrower
-# question rather than a choice between two of them.
+# and the app shows each as its own named row of pills you click. There is no
+# free-text box any more, which is the point — a closed vocabulary you pick from
+# cannot grow a second spelling of a word it already has, so the merge tool that
+# used to sit in a Tags view has nothing left to do and is gone.
+#
+# Both are multi-select, because the shelf has series carrying two settings and
+# three genres and one-of would have thrown that away.
 #
 # Order inside an axis is presentation order, roughly most-used first.
 TAGS = {
@@ -149,27 +171,37 @@ def kind_units(db):
     return {r["name"]: r["unit"] for r in db.execute("SELECT name, unit FROM kind")}
 
 
-def tag_id(db, name):
+def tag_id(db, name, axis=None):
+    """Resolve a setting or genre, filing a new one onto the axis it came from.
+
+    `axis` is what keeps the pickers honest. A word with none belongs to
+    neither menu, so it can be attached to a series and then never seen again
+    — which is exactly what the free-text tag box used to produce."""
     name = name.strip()
-    row = db.execute("SELECT id FROM tag WHERE name = ?", (name,)).fetchone()
+    row = db.execute("SELECT id, axis FROM tag WHERE name = ?", (name,)).fetchone()
     if row:
+        if axis and not row["axis"]:
+            db.execute("UPDATE tag SET axis = ? WHERE id = ?", (axis, row["id"]))
         return row["id"]
-    return db.execute("INSERT INTO tag(name) VALUES (?)", (name,)).lastrowid
+    return db.execute("INSERT INTO tag(name, axis) VALUES (?,?)",
+                      (name, axis or AXIS_OF.get(name))).lastrowid
 
 
 def reindex(db, series_id):
     """Rebuild one series' FTS row. The single place search text is defined."""
-    r = db.execute("SELECT title, kind, type, notes, tags FROM v_series WHERE id = ?",
-                   (series_id,)).fetchone()
+    r = db.execute("SELECT title, kind, type, setting, genre FROM v_series "
+                   "WHERE id = ?", (series_id,)).fetchone()
     db.execute("DELETE FROM series_fts WHERE rowid = ?", (series_id,))
     if r:
-        # Kind rides in the `type` column of the index rather than getting one
-        # of its own: an FTS5 table's columns cannot be added later without
-        # rebuilding it, and "anime" and "OVA" are the same kind of search term.
+        # Setting and genre share the index's `tags` column and kind rides in
+        # its `type` column, rather than each getting one of its own: an FTS5
+        # table's columns cannot be added later without rebuilding it, and
+        # "anime" and "Movie" are the same kind of search term either way.
+        words = " ".join(filter(None, (r["setting"], r["genre"]))).replace(SEP, " ")
         db.execute(
-            "INSERT INTO series_fts(rowid, title, tags, type, notes) VALUES (?,?,?,?,?)",
-            (series_id, r["title"], (r["tags"] or "").replace("\x1f", " "),
-             f"{r['kind'] or ''} {r['type'] or ''}".strip(), r["notes"] or ""))
+            "INSERT INTO series_fts(rowid, title, tags, type) VALUES (?,?,?,?)",
+            (series_id, r["title"], words.strip(),
+             f"{r['kind'] or ''} {r['type'] or ''}".strip()))
 
 
 def upsert_vocab(db):
@@ -186,16 +218,19 @@ def upsert_vocab(db):
 
     kinds = {r["name"]: r["id"] for r in db.execute("SELECT id, name FROM kind")}
     pos = 0
-    for kind, names in TYPES.items():
-        for name in names:
+    for kind, entries in TYPES.items():
+        for name, progress in entries:
             pos += 1
-            # A type name can be shared across kinds — Documentary is both a
-            # show and a film — and `name` is UNIQUE, so the first kind to
-            # claim it keeps it. Not worth a composite key for one word.
-            db.execute("INSERT INTO type(name, pos, kind_id) VALUES (?,?,?) "
+            # `name` is UNIQUE across both kinds, which the four Watching words
+            # and the five Reading ones have no trouble with. `progress` is
+            # authoritative here and overwritten every start: it is a property
+            # of the word, not something a row can drift away from.
+            db.execute("INSERT INTO type(name, pos, kind_id, progress) "
+                       "VALUES (?,?,?,?) "
                        "ON CONFLICT(name) DO UPDATE SET pos = excluded.pos, "
-                       "kind_id = COALESCE(type.kind_id, excluded.kind_id)",
-                       (name, pos, kinds.get(kind)))
+                       "kind_id = COALESCE(type.kind_id, excluded.kind_id), "
+                       "progress = excluded.progress",
+                       (name, pos, kinds.get(kind), progress))
     # Tags are upserted by name too, but only their axis is authoritative here:
     # a tag the user invented in the sheet keeps existing with axis NULL, and
     # one of ours gets its axis restored if it was somehow cleared.
@@ -230,7 +265,9 @@ def migrate(db):
     """One-time repairs. Each runs once, on whichever start first sees it."""
     add_column(db, "tag", "axis", "TEXT")
     add_column(db, "series", "kind_id", "INTEGER REFERENCES kind(id)")
+    add_column(db, "series", "tome", "REAL")
     add_column(db, "type", "kind_id", "INTEGER REFERENCES kind(id)")
+    add_column(db, "type", "progress", "TEXT NOT NULL DEFAULT ''")
 
     # v_series gained kind and unit. A view is not a table: dropping and
     # recreating it costs nothing and is the only way to change one, and
@@ -345,6 +382,65 @@ def migrate(db):
                   + (f", {n} series moved" if n else ""))
 
 
+    # Two trackers, and the shelf below each of them is its own.
+    #
+    # Everything in here is a change of mind rather than a change of data, so
+    # it runs exactly once and the user is free to undo any of it afterwards.
+    if once(db, "two-trackers"):
+        # Playing leaves, and the one playthrough filed under it leaves with
+        # it — Elden Ring has a tracker of its own and does not need a door
+        # here. Series first: type.kind_id is ON DELETE SET NULL but
+        # series.type_id is RESTRICT, so a type cannot go while a row wears it.
+        gone = [r["id"] for r in db.execute(
+            "SELECT s.id FROM series s JOIN kind k ON k.id = s.kind_id "
+            "WHERE k.name = 'Playing'")]
+        for sid in gone:
+            db.execute("DELETE FROM series WHERE id = ?", (sid,))
+            db.execute("DELETE FROM series_fts WHERE rowid = ?", (sid,))
+        n = db.execute("DELETE FROM type WHERE kind_id IN "
+                       "(SELECT id FROM kind WHERE name = 'Playing')").rowcount
+        if db.execute("DELETE FROM kind WHERE name = 'Playing'").rowcount:
+            print(f"  migrate: Playing retired ({len(gone)} series, {n} type(s))")
+
+        # Watching's nine broadcast formats become four words. Renaming rather
+        # than re-filing keeps type_id pointing where it did: Series *is* Show
+        # now, and Film *is* Movie. Guarded on the new name not already
+        # existing, because a rename onto a taken name is a UNIQUE violation.
+        for old_name, new_name in (("Series", "Show"), ("Film", "Movie")):
+            db.execute(
+                "UPDATE type SET name = ? WHERE name = ? AND NOT EXISTS "
+                "(SELECT 1 FROM type WHERE name = ?)",
+                (new_name, old_name, new_name))
+
+        # The rest go only if nothing is filed under them. Retyping somebody's
+        # library is not a rename, and a type left standing with one series on
+        # it is a smaller wrong than a series silently retyped.
+        for name in RETIRED_TYPES:
+            row = db.execute("SELECT id FROM type WHERE name = ?", (name,)).fetchone()
+            if row and not db.execute(
+                    "SELECT 1 FROM series WHERE type_id = ?", (row["id"],)).fetchone():
+                db.execute("DELETE FROM type WHERE id = ?", (row["id"],))
+
+        # Notes go. 618 of them held the leftovers of a vault import — a
+        # `Best Read:` line, a stray paragraph — and none of it was ever read
+        # back. Dropping a column means taking down everything built over it
+        # first: the view names it, and the FTS table indexed it. Both are
+        # recreated by the second executescript in main(), and the heal loop
+        # at the end of main() rebuilds every search row, because there is no
+        # FTS table left for any of them to be in.
+        cols = [r["name"] for r in db.execute("PRAGMA table_info(series)")]
+        if "notes" in cols:
+            db.execute("DROP VIEW IF EXISTS v_series")
+            db.execute("DROP TABLE IF EXISTS series_fts")
+            db.execute("ALTER TABLE series DROP COLUMN notes")
+            print("  migrate: notes dropped, search index rebuilding")
+        else:
+            # A database that never had notes still needs the view rebuilt:
+            # it gained tome, progress, and setting and genre as two columns.
+            db.execute("DROP VIEW IF EXISTS v_series")
+            db.execute("DROP TABLE IF EXISTS series_fts")
+
+
 def apply_tags(db, plan):
     """Re-tag the shelf from tags.json, once.
 
@@ -398,16 +494,16 @@ def apply_series(db, s, series_id=None):
         vocab_id(db, "status", s.get("status")),
         vocab_id(db, "pub", s.get("pub")),
         vocab_id(db, "type", s.get("type")),
-        s.get("cover") or "", s.get("notes") or "",
+        s.get("cover") or "",
     )
     if series_id is None:
         series_id = db.execute(
             "INSERT INTO series(title, chapter, rating, kind_id, status_id, pub_id,"
-            " type_id, cover, notes) VALUES (?,?,?,?,?,?,?,?,?)", vals).lastrowid
+            " type_id, cover) VALUES (?,?,?,?,?,?,?,?)", vals).lastrowid
     else:
         db.execute(
             "UPDATE series SET title=?, chapter=?, rating=?, kind_id=?, status_id=?,"
-            " pub_id=?, type_id=?, cover=?, notes=?, updated_at=datetime('now')"
+            " pub_id=?, type_id=?, cover=?, updated_at=datetime('now')"
             " WHERE id=?", vals + (series_id,))
         db.execute("DELETE FROM series_tag WHERE series_id = ?", (series_id,))
 

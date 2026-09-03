@@ -118,6 +118,11 @@ body{
   -webkit-font-smoothing:antialiased;overflow-wrap:break-word;
 }
 button,input,select,textarea{font:inherit;color:inherit}
+/* The dock and the add button are `display:flex` inside a media query, which
+   is a class beating the UA's `[hidden]{display:none}` on specificity — so on
+   a phone they stayed on screen over the portal, where there is no shelf for
+   them to act on. One rule, rather than a `[hidden]` guard on each. */
+[hidden]{display:none !important}
 button{cursor:pointer}
 a{color:var(--a11);text-underline-offset:2px}
 .mono{font-family:Mono,ui-monospace,monospace;font-variant-numeric:tabular-nums}
@@ -202,19 +207,43 @@ h1{font-size:16px;font-weight:600;margin:0;
    now carries its own question above it, and the tag filter is split into the
    three axes the vocabulary actually has, so choosing a setting and a genre
    at once is possible rather than a choice between them. */
-/* Kind sits above the shelves because it is the wider cut: which library you
-   are in, before which shelf of it. Same chip shape, one step quieter, so the
-   two rows read as a hierarchy rather than as two of the same thing. */
-.kinds{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;
-  padding:2px 0 2px;margin:0 -2px}
-.kinds::-webkit-scrollbar{display:none}
-.kind{flex:none;background:none;border:0;border-radius:var(--r-md);
-  padding:0 10px;height:28px;color:var(--ink-3);font-size:12.5px;font-weight:500;
-  display:flex;align-items:center;gap:6px;white-space:nowrap}
-@media (max-width:640px){.kind{height:32px;padding:0 12px}}
-.kind em{font-style:normal;font-family:Mono,monospace;font-size:10px;opacity:.7}
-.kind:hover{color:var(--ink)}
-.kind[aria-selected=true]{background:var(--g3);color:var(--ink);font-weight:600}
+/* ── the two doors ──────────────────────────────────────────────────────
+   Where a row of kind chips used to be. Reading and Watching were never a
+   filter over one shelf — they are two shelves that happen to share a schema,
+   and the chip strip made choosing between them a thing you did on the way
+   past, with an "All" in front that mixed nine hundred manhwa into five films.
+   So the app opens on neither, and you walk into one. */
+.hall{min-height:calc(100dvh - 170px);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:34px;padding:20px 0 40px}
+.mast{text-align:center;display:flex;flex-direction:column;gap:7px}
+.mast b{font-family:Lit,Georgia,serif;font-size:34px;font-weight:600;
+  letter-spacing:-.025em;line-height:1}
+.mast span{font-size:13px;color:var(--ink-3)}
+/* An explicit width, because auto-fit inside a shrink-to-fit flex item
+   resolves to one column and stacks the two doors into a list. */
+.portal{display:grid;gap:22px;width:min(100%,640px);
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.door{
+  display:flex;flex-direction:column;gap:10px;text-align:left;
+  padding:30px 28px;border:1px solid var(--rule);background:var(--card);
+  border-radius:var(--r-xl);color:inherit;transition:border-color .14s,transform .14s;
+}
+.door:hover{border-color:var(--a7);transform:translateY(-2px)}
+.door b{font-family:Lit,Georgia,serif;font-size:27px;font-weight:600;
+  letter-spacing:-.02em;line-height:1}
+.door span{font-size:13px;color:var(--ink-3)}
+.door em{font-style:normal;font-family:Mono,monospace;font-size:12px;
+  color:var(--a11);letter-spacing:.02em}
+@media (max-width:640px){
+  .hall{min-height:calc(100dvh - 120px);gap:26px;
+    padding:8px max(14px,env(safe-area-inset-left)) 30px;align-items:stretch}
+  .portal{grid-template-columns:1fr;gap:14px}
+  .mast b{font-size:29px}
+  .door{padding:24px 22px}
+}
+/* The masthead's back arrow. A tracker is somewhere you are inside of, so
+   there has to be a way out that is not the browser's. */
+.out{flex:none;margin-left:-8px}
 
 .drawer{display:none;gap:10px 12px;padding:4px 0 12px;
   grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
@@ -380,18 +409,6 @@ main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
 .list button em{font-style:normal;margin-left:auto;font-family:Mono,monospace;
   font-size:11px;color:var(--ink-3);flex:none}
 .hint{font-size:13px;color:var(--ink-2);margin:-6px 0 14px;line-height:1.55}
-.cloud{display:flex;flex-wrap:wrap;gap:6px}
-.cloud button{border:1px solid var(--rule);background:var(--paper);
-  border-radius:var(--r-sm);padding:5px 10px;font-size:12.5px;color:var(--ink-2)}
-.cloud button:hover{border-color:var(--g8);color:var(--ink)}
-.cloud button em{font-style:normal;font-family:Mono,monospace;font-size:10px;
-  color:var(--ink-3);margin-left:5px}
-.merge{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 0;
-  border-bottom:1px solid var(--rule-2);font-size:13px}
-.merge:last-child{border-bottom:0}
-.merge code{font-family:Mono,monospace;font-size:12px;background:var(--sunk);
-  padding:3px 8px;border-radius:var(--r-sm)}
-.merge .go{margin-left:auto}
 
 /* ── the sheet ──────────────────────────────────────────────────────── */
 .veil{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);
@@ -458,13 +475,16 @@ main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
 .pick[data-v=Current]{--tone:var(--current)} .pick[data-v=Later]{--tone:var(--later)}
 .pick[data-v=Hold]{--tone:var(--hold)}       .pick[data-v=Finished]{--tone:var(--finished)}
 .pick[data-v=Dropped]{--tone:var(--dropped)}
-.tagbox{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
-.tagbox span{display:inline-flex;align-items:center;gap:6px;height:30px;
-  padding:0 5px 0 11px;border:1px solid var(--rule);border-radius:var(--r-sm);
-  font-size:12.5px;color:var(--ink-2)}
-.tagbox span button{border:0;background:none;color:var(--ink-3);font-size:15px;
-  line-height:1;padding:0 4px}
-.tagbox span button:hover{color:var(--ink)}
+/* Watched, or not. A film has no episode counter and never did — the number
+   under one was the kind's unit leaking onto a type that does not count. */
+.switch{display:flex;align-items:center;gap:12px}
+.switch button{height:44px;flex:1;border:1px solid var(--rule);background:var(--paper);
+  border-radius:var(--r-md);font-size:14px;font-weight:500;color:var(--ink-2)}
+.switch button[aria-pressed=true]{background:var(--a3);border-color:var(--a7);
+  color:var(--a11);font-weight:600}
+/* Setting and Genre are the same pills as every other field, but many-of. The
+   square corner is the whole tell: a radio group is round, a checkbox is not. */
+.picks.many .pick{border-radius:var(--r-sm)}
 .sheet-foot{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--rule-2);
   padding-bottom:calc(12px + env(safe-area-inset-bottom));background:var(--card)}
 .btn{height:var(--tap);padding:0 20px;border:1px solid var(--rule);
@@ -504,13 +524,7 @@ main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
   .stars input[type=range]{height:var(--tap)}
   .picks .pick,#e-rating-clear{height:40px;padding:0 13px}
   .drawer select,.drawer .chip{height:44px}
-  .cloud button{min-height:40px;padding:8px 11px}
-  .merge .chip{height:40px}
-  .tagbox span{height:34px;padding-left:11px}
-  /* The × has to fill the chip's height or it measures 25x17 — a target you
-     miss, on a control whose whole job is removing the wrong tag. */
-  .tagbox span button{height:100%;padding:0 9px;font-size:18px;display:grid;
-    place-items:center}
+  .switch button{height:var(--tap)}
   .list button{padding:11px 8px}
   /* The cover is the obvious target; the title under it is a courtesy, but a
      two-line clamp can be 18px tall, so give it something to hit. */
@@ -572,22 +586,22 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
 </head>
 <body>
 
-<header>
+<header id="head" hidden>
   <div class="bar">
-    <h1>Media Tracker</h1>
+    <button class="ico out" data-act="home" title="Both trackers" aria-label="Both trackers"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+    <h1 id="h1">Media Tracker</h1>
     <div class="tally">
-      <span><b id="t-count">—</b> <i>series</i></span>
-      <span><b id="t-ch">—</b> <i>chapters</i></span>
+      <span><b id="t-count">—</b> <i>titles</i></span>
+      <span><b id="t-ch">—</b> <i id="t-ch-word">chapters</i></span>
     </div>
     <button class="ico" data-act="filter" title="Filters" aria-label="Filters"><svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg></button>
     <button class="ico" data-view="stats" title="Statistics" aria-label="Statistics"><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></button>
-    <button class="ico" data-view="tags" title="Tags" aria-label="Tags"><svg viewBox="0 0 24 24"><path d="m21.41 11.58-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></svg></button>
     <button class="ico" data-act="new" title="Add a series" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
   </div>
 
   <div class="seek">
     <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-    <input id="q" type="search" placeholder="Search titles and tags" autocomplete="off" spellcheck="false">
+    <input id="q" type="search" placeholder="Search titles, settings and genres" autocomplete="off" spellcheck="false">
     <button id="q-clear" hidden aria-label="Clear search">✕</button>
   </div>
 
@@ -600,29 +614,28 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
         <option value="title">Title A–Z</option>
       </select></div>
     <div class="filt"><label class="lbl" for="f-type">Type</label>
-      <select id="f-type" title="Manhwa, manga, web novel…"><option value="">Any</option></select></div>
+      <select id="f-type" title="What kind of thing it is"><option value="">Any</option></select></div>
     <div class="filt"><label class="lbl" for="f-pub">Publication status</label>
       <select id="f-pub" title="Whether the author is still writing it"><option value="">Any</option></select></div>
     <div class="filt"><label class="lbl" for="f-setting">Setting</label>
       <select id="f-setting" title="Where it takes place"><option value="">Any</option></select></div>
     <div class="filt"><label class="lbl" for="f-genre">Genre</label>
-      <select id="f-genre" title="How it reads"><option value="">Any</option></select></div>
+      <select id="f-genre" title="What it feels like"><option value="">Any</option></select></div>
     <div class="filt act"><button class="chip" id="f-clear">Reset filters</button></div>
   </div>
 
-  <div class="kinds" id="kinds"></div>
   <div class="tabs" id="tabs"></div>
 </header>
 
 <main id="main"><div class="empty">Opening the shelf…</div></main>
 
-<nav class="dock" aria-label="Views">
+<nav class="dock" id="dock" aria-label="Views" hidden>
   <button data-view="shelf"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></i><span>Shelf</span></button>
   <button data-view="stats"><i><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></i><span>Stats</span></button>
-  <button data-view="tags"><i><svg viewBox="0 0 24 24"><path d="m21.41 11.58-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/></svg></i><span>Tags</span></button>
+  <button data-act="home"><i><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></i><span>Trackers</span></button>
 </nav>
 
-<button class="fab" data-act="new" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+<button class="fab" id="fab" hidden data-act="new" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
 
 <div class="veil" id="veil"></div>
 <aside class="sheet" id="sheet" aria-hidden="true"></aside>
@@ -647,14 +660,10 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
 
 <dialog id="dlg">
   <form method="dialog" id="dlg-form">
-    <h2>Add a series</h2>
+    <h2 id="dlg-title">Add a series</h2>
     <div class="field">
       <label class="lbl" for="n-title">Title</label>
       <input type="text" id="n-title" required placeholder="What is it called?">
-    </div>
-    <div class="field">
-      <label class="lbl" for="n-kind">Kind</label>
-      <select id="n-kind"></select>
     </div>
     <div class="field">
       <label class="lbl" for="n-type">Type</label>
@@ -723,38 +732,67 @@ async function api(path, body){
   return j;
 }
 
-/* ══ state ════════════════════════════════════════════════════════════ */
+/* ══ state ════════════════════════════════════════════════════════════
+   `kind` is null until he walks through a door, and that is the whole shape of
+   this app now: outside a tracker there is no shelf, no filter and no header,
+   and inside one there is never a question about which tracker he is in. */
 const S = {
-  data:null, view:'shelf', shelf:'Current', q:'',
-  kind:'All', type:'', pub:'', setting:'', genre:'', sort:'updated', open:null,
+  data:null, kind:null, view:'shelf', shelf:'Current', q:'',
+  type:'', pub:'', setting:'', genre:'', sort:'updated', open:null,
 };
 const AXES = ['setting','genre'];
-const AXIS_LABEL = { setting:'Setting', genre:'Genre', other:'Unfiled' };
-/* What the progress number is called, per kind. The column behind it is one
+const AXIS_LABEL = { setting:'Setting', genre:'Genre' };
+/* What the progress number is called, per tracker. The column behind it is one
    number either way; this is the word that makes it mean something. */
-const PROGRESS_LABEL = {
-  Reading:'Chapter', Watching:'Episode', Playing:'Hours',
-};
-/* The + button used to promise "one more chapter" whatever it was sitting on.
-   Same word as the label above, lowercased. */
-const bumpWord = s => (PROGRESS_LABEL[s.kind] || 'unit').toLowerCase();
+const PROGRESS_LABEL = { Reading:'Chapter', Watching:'Episode' };
+const TALLY_WORD     = { Reading:'chapters', Watching:'episodes' };
 const byId = id => S.data.series.find(s => s.id === id);
+
+/* Types of the tracker he is in, and what each one counts. A Movie counts
+   nothing — 'once' — which is what turns the stepper into a switch. */
+const typesOf  = k => (S.data.meta.typesByKind || {})[k] || [];
+const typeNames = k => typesOf(k).map(x => x.name);
+const modeOf = (k, type) => (typesOf(k).find(x => x.name === type) || {}).progress || '';
+/* The + on a card promises one more of something. Same word as the field label,
+   lowercased, except for a film, which you do not get one more of. */
+const bumpWord = s => s.progress === 'once' ? 'watch'
+  : (PROGRESS_LABEL[s.kind] || 'unit').toLowerCase();
+
+/* ══ the two doors ════════════════════════════════════════════════════
+   The tracker lives in the hash, so reloading keeps you where you were and
+   Back walks you out of a tracker rather than off the page. */
+const slug = k => k.toLowerCase().replace(/\s+/g, '-');
+const kindFromHash = () => (S.data ? S.data.meta.kind : [])
+  .find(k => slug(k) === location.hash.replace(/^#\/?/, '').toLowerCase()) || null;
+
+function enter(kind){
+  S.kind = kind;
+  S.view = 'shelf';
+  S.q = ''; $('#q').value = ''; $('#q-clear').hidden = true;
+  clearFilters();
+  if (kind){
+    // Open on Current unless nothing is, which is most of Watching.
+    const pool = S.data.series.filter(s => s.kind === kind);
+    S.shelf = pool.some(s => s.status === 'Current') ? 'Current' : 'All';
+    fillPickers();
+  }
+  if (S.open) closeSheet();
+  scrollTo({ top: 0 });
+  render();
+}
 
 /* ══ load ═════════════════════════════════════════════════════════════ */
 async function load(){
   try {
     S.data = await api('/api/library');
-    if (!S.data.series.some(s => s.status === S.shelf)) S.shelf = 'All';
-    fillPickers();
-    render();
+    // Both trackers arrive in one response and the door only chooses which
+    // half is on screen, so re-reading never has to know where he is standing.
+    if (S.kind === null) enter(kindFromHash());
+    else { fillPickers(); render(); }
   } catch (e) {
     $('#main').innerHTML = `<div class="empty">Could not open the shelf.<br>${esc(e.message)}</div>`;
   }
 }
-
-/* Tags belonging to one axis, in vocabulary order. */
-const tagsOn = axis => (S.data.tags.axes.find(a => a.axis === axis) || {}).tags || [];
-const axisOf = tag => (S.data.tags.counts.find(c => c.tag === tag) || {}).axis || '';
 
 function fillPickers(){
   const m = S.data.meta;
@@ -764,52 +802,37 @@ function fillPickers(){
       items.map(v => `<option>${esc(v)}</option>`).join('');
     sel.value = items.includes(keep) ? keep : '';
   };
-  // Only the types belonging to the kind you are in. "Any" over all of them is
-  // a menu offering Manhwa and OVA and PC together, which is no menu at all.
-  const typesHere = S.kind === 'All'
-    ? m.type
-    : (m.typesByKind || {})[S.kind] || [];
-  opt($('#f-type'), typesHere, 'Any');
+  opt($('#f-type'), typeNames(S.kind), 'Any');
   opt($('#f-pub'), m.pub, 'Any');
-  // One dropdown per axis, each holding only its own tags. The old single
-  // "Any tag" menu was 59 items long and mixed all three together.
-  for (const axis of AXES)
-    opt($('#f-' + axis), tagsOn(axis).map(t => t.tag), 'Any');
+  // One dropdown per field, each holding only its own words. The old single
+  // "Any tag" menu was 59 items long and mixed both together.
+  for (const axis of AXES) opt($('#f-' + axis), (m.words || {})[axis] || [], 'Any');
   $('#f-sort').value = S.sort;
 
-  // The add dialog opens on whichever kind you are browsing, which is nearly
-  // always the one you are adding to.
-  const startKind = S.kind !== 'All' ? S.kind : m.kind[0];
-  $('#n-kind').innerHTML = m.kind
-    .map(v => `<option${v === startKind ? ' selected' : ''}>${esc(v)}</option>`).join('');
-  fillNewTypes();
+  // No Kind menu on the add dialog: he is standing in one.
+  $('#n-type').innerHTML = '<option value="">—</option>' +
+    typeNames(S.kind).map(v => `<option>${esc(v)}</option>`).join('');
   $('#n-status').innerHTML = m.status
     .map(v => `<option${v === 'Later' ? ' selected' : ''}>${esc(v)}</option>`).join('');
-}
-
-function fillNewTypes(){
-  const k = $('#n-kind').value;
-  const list = (S.data.meta.typesByKind || {})[k] || [];
-  $('#n-type').innerHTML = '<option value="">—</option>' +
-    list.map(v => `<option>${esc(v)}</option>`).join('');
+  $('#dlg-title').textContent =
+    S.kind === 'Watching' ? 'Add something to watch' : 'Add something to read';
 }
 
 /* ══ selection ════════════════════════════════════════════════════════ */
 function shown(){
-  let list = S.data.series;
-  if (S.kind !== 'All') list = list.filter(s => s.kind === S.kind);
+  let list = S.data.series.filter(s => s.kind === S.kind);
   if (S.shelf !== 'All') list = list.filter(s => s.status === S.shelf);
   if (S.type) list = list.filter(s => s.type === S.type);
   if (S.pub)  list = list.filter(s => s.pub === S.pub);
-  // The three tag filters are ANDed: a murim regression story is one query now,
-  // not a choice between two of the three things you know about it.
+  // Setting and genre are ANDed: a murim regression story is one query, not a
+  // choice between two of the things you know about it.
   for (const axis of AXES)
-    if (S[axis]) list = list.filter(s => s.tags.includes(S[axis]));
+    if (S[axis]) list = list.filter(s => s[axis].includes(S[axis]));
   if (S.q){
     const q = S.q.toLowerCase();
+    const has = (arr) => arr.some(v => v.toLowerCase().includes(q));
     list = list.filter(s => s.title.toLowerCase().includes(q)
-      || s.tags.some(t => t.toLowerCase().includes(q))
-      || s.type.toLowerCase().includes(q));
+      || has(s.setting) || has(s.genre) || s.type.toLowerCase().includes(q));
   }
   const cmp = {
     updated: (a,b) => String(b.updated).localeCompare(String(a.updated)),
@@ -822,22 +845,21 @@ function shown(){
 
 /* ══ render ═══════════════════════════════════════════════════════════ */
 function render(){
-  const st = S.data.stats;
+  // Outside a tracker there is nothing to put a header on. Hiding the chrome
+  // rather than emptying it is what makes the doors a place rather than a
+  // shelf with no rows.
+  const inside = !!S.kind;
+  $('#head').hidden = $('#dock').hidden = $('#fab').hidden = !inside;
+  document.title = inside ? `${S.kind} — Media Tracker` : 'Media Tracker';
+  if (!inside) return renderPortal();
+
+  const st = S.data.stats[S.kind] || { total:0, units:0, byStatus:[] };
+  $('#h1').textContent = S.kind;
   $('#t-count').textContent = st.total;
-  $('#t-ch').textContent = st.chapters.toLocaleString();
+  $('#t-ch').textContent = st.units.toLocaleString();
+  $('#t-ch-word').textContent = TALLY_WORD[S.kind] || 'units';
 
-  const kindCount = Object.fromEntries((st.byKind || []).map(r => [r.name, r.count]));
-  $('#kinds').innerHTML = ['All', ...S.data.meta.kind].map(k => {
-    const n = k === 'All' ? st.total : (kindCount[k] || 0);
-    return `<button class="kind" data-k="${esc(k)}" role="tab"
-      aria-selected="${S.kind === k}">${esc(k)} <em>${n}</em></button>`;
-  }).join('');
-
-  // Shelf counts are of the kind you are looking at, not of everything. A
-  // Games tab reading "Current 3" next to a shelf holding 900 books would be
-  // two numbers about two different questions sitting side by side.
-  const pool = S.kind === 'All' ? S.data.series
-                                : S.data.series.filter(x => x.kind === S.kind);
+  const pool = S.data.series.filter(x => x.kind === S.kind);
   const counts = {};
   for (const x of pool) counts[x.status] = (counts[x.status] || 0) + 1;
   $('#tabs').innerHTML = [...S.data.meta.status, 'All'].map(s => {
@@ -864,9 +886,23 @@ function render(){
   }
   if (!onShelf) $('#drawer').classList.remove('open');
 
-  if (S.view === 'stats')   return renderStats();
-  if (S.view === 'tags')    return renderTags();
+  if (S.view === 'stats') return renderStats(st);
   renderShelf();
+}
+
+function renderPortal(){
+  $('#main').innerHTML = `<div class="hall">
+    <div class="mast"><b>Media Tracker</b><span>Two shelves. Pick one.</span></div>
+    <div class="portal">${S.data.meta.kind.map(k => {
+    const st = S.data.stats[k] || { total:0, byStatus:[] };
+    const cur = (st.byStatus || []).find(r => r.name === 'Current');
+    return `<button class="door" data-door="${esc(k)}">
+      <b>${esc(k)}</b>
+      <span>${st.total} ${st.total === 1 ? 'title' : 'titles'}</span>
+      <em>${cur ? `${cur.count} on the go` : 'nothing on the go'}</em>
+    </button>`;
+  }).join('')}</div>
+  </div>`;
 }
 
 function renderShelf(){
@@ -884,6 +920,18 @@ function card(s){
          data-t="${esc(s.title)}">`
     : `<div class="fallback">${esc(s.title)}</div>`;
   const sub = [s.type, s.pub].filter(Boolean);
+  // A film has two states and no number. Everything else has a count, and a
+  // volume beside it when he is keeping one.
+  const once = s.progress === 'once';
+  const mark = once
+    ? `<b>${s.chapter ? 'WATCHED' : 'UNWATCHED'}</b>`
+    : s.chapter !== null
+      ? `${s.unit ? `<b>${esc(s.unit.toUpperCase())}</b> ` : ''}${esc(fmt(s.chapter))}` +
+        (s.tome !== null ? ` <b>T</b> ${esc(fmt(s.tome))}` : '')
+      : `<b>UNSTARTED</b>`;
+  const plus = once && s.chapter ? '' : `
+        <button class="plus" data-bump="${s.id}" title="One more ${esc(bumpWord(s))}"
+          aria-label="One more ${esc(bumpWord(s))} of ${esc(s.title)}">${once ? '✓' : '+'}</button>`;
   return `
   <div class="book" data-s="${esc(s.status)}" style="--h:${hue(s.title)}">
     <div class="plate" data-open="${s.id}" role="button" tabindex="0">
@@ -891,11 +939,7 @@ function card(s){
       <div class="mark"></div>
       ${s.rating !== null ? `<div class="score">${esc(fmt(s.rating))}</div>` : ''}
       <div class="foot">
-        <div class="ch">${s.chapter !== null
-          ? `${s.unit ? `<b>${esc(s.unit.toUpperCase())}</b> ` : ''}${esc(fmt(s.chapter))}`
-          : `<b>UNSTARTED</b>`}</div>
-        <button class="plus" data-bump="${s.id}" title="One more ${esc(bumpWord(s))}"
-          aria-label="One more ${esc(bumpWord(s))} of ${esc(s.title)}">+</button>
+        <div class="ch">${mark}</div>${plus}
       </div>
     </div>
     <div>
@@ -914,28 +958,31 @@ function bars(rows, total, tone){
     </div>`).join('')}</div>`;
 }
 
-function renderStats(){
-  const st = S.data.stats;
-
+function renderStats(st){
+  // One tracker's numbers. A mean rating over nine hundred manhwa and five
+  // films was a number about no shelf in particular.
+  const slab = (title, rows, opts) => rows.length
+    ? `<div class="slab"><h2>${esc(title)}</h2>${bars(rows,
+        opts === 'peak' ? Math.max(...rows.map(r => r.count), 1) : st.total,
+        opts === 'tone')}</div>`
+    : '';
   $('#main').innerHTML = `<div class="panel">
     <div class="slab">
       <div class="figs">
-        <div class="fig"><b>${st.total}</b><span>series</span></div>
-        <div class="fig"><b>${st.chapters.toLocaleString()}</b><span>chapters</span></div>
+        <div class="fig"><b>${st.total}</b><span>titles</span></div>
+        <div class="fig"><b>${st.units.toLocaleString()}</b>
+          <span>${esc(TALLY_WORD[S.kind] || 'units')}</span></div>
+        ${st.done ? `<div class="fig"><b>${st.done}</b><span>films watched</span></div>` : ''}
         <div class="fig"><b>${st.avg ?? '—'}</b><span>mean rating</span></div>
       </div>
     </div>
-    ${(st.byKind || []).length > 1
-      ? `<div class="slab"><h2>By kind</h2>${bars(st.byKind, st.total)}</div>` : ''}
-    <div class="slab"><h2>By shelf</h2>${bars(st.byStatus, st.total, true)}</div>
-    <div class="slab"><h2>By type</h2>${bars(st.byType, st.total)}</div>
-    <div class="slab"><h2>By publication status</h2>${bars(st.byPub, st.total)}</div>
-    <div class="slab"><h2>Ratings given</h2>
-      ${bars(st.ratings.map(r => ({name:String(r.score), count:r.count})),
-             Math.max(...st.ratings.map(r => r.count), 1))}</div>
-    ${(st.byTag || []).map(g => `
-      <div class="slab"><h2>By ${esc(AXIS_LABEL[g.axis] || g.axis).toLowerCase()}</h2>
-        ${bars(g.rows, Math.max(...g.rows.map(r => r.count), 1))}</div>`).join('')}
+    ${slab('By shelf', st.byStatus, 'tone')}
+    ${slab('By type', st.byType)}
+    ${slab('By publication status', st.byPub)}
+    ${slab('Ratings given',
+           st.ratings.map(r => ({ name:String(r.score), count:r.count })), 'peak')}
+    ${slab('By setting', st.bySetting, 'peak')}
+    ${slab('By genre', st.byGenre, 'peak')}
   </div>`;
 }
 
@@ -943,43 +990,60 @@ function renderStats(){
    and still served at /api/history — it is the one thing a shelf of markdown
    notes could never hold, and throwing it away to hide a tab would be the
    expensive half of a cheap decision. Putting the view back is a dock button
-   and a function; putting the history back would be impossible. */
+   and a function; putting the history back would be impossible.
 
-function renderTags(){
-  const t = S.data.tags;
-  const variants = !t.variants.length ? '' : t.variants.map(v => `
-      <div class="merge">
-        ${v.spellings.map(s => `<code>${esc(s.tag)}</code><em style="font-style:normal;
-          color:var(--ink-3);font-size:11px">${s.count}</em>`).join(
-          '<span style="color:var(--ink-3)">/</span>')}
-        <button class="chip go" data-merge="${esc(JSON.stringify(v))}">Merge into ${esc(v.canon)}</button>
-      </div>`).join('');
-
-  // Only shown when there is something to merge. The vocabulary is closed now,
-  // so this is a net for spellings typed by hand into the sheet rather than the
-  // standing condition it was when the tags came out of the vault.
-  const mergePanel = !variants ? '' : `
-    <div class="slab">
-      <h2>Spelled more than one way</h2>
-      <p class="hint">Two tags here mean one thing and filter as two. Merging
-      repoints every series onto one spelling and drops the other.</p>
-      ${variants}
-    </div>`;
-
-  $('#main').innerHTML = `<div class="panel">
-    ${mergePanel}
-    ${t.axes.map(a => `
-      <div class="slab">
-        <h2>${esc(AXIS_LABEL[a.axis] || a.axis)} <span>${a.tags.length}</span></h2>
-        <p class="hint">${esc(AXIS_NOTE[a.axis] || '')}</p>
-        <div class="cloud">${a.tags.map(c =>
-          `<button data-tag="${esc(c.tag)}">${esc(c.tag)}<em>${c.count}</em></button>`).join('')}</div>
-      </div>`).join('')}
-  </div>`;
-}
+   No renderTags() either, and for the opposite reason: it earned its keep only
+   while tags were typed by hand and the same word could exist twice. They are
+   picked from a closed list now, so the merge tool has nothing to merge and
+   the cloud is two dropdowns in the filter drawer. */
 
 /* ══ the sheet ════════════════════════════════════════════════════════ */
-let sheetTags = [];
+
+/* The progress control is not one control. A show has episodes and a film has
+   an evening, so which of the two you get is a property of the type — and the
+   type is editable in this same sheet, which is why this is a function that
+   can be called again rather than a branch taken once on open. */
+function progressField(s, type){
+  const once = modeOf(s.kind, type) === 'once';
+  if (once) return `
+      <span class="lbl">Watched</span>
+      <div class="switch">
+        <button data-watched="0" aria-pressed="${!s.chapter}">Not yet</button>
+        <button data-watched="1" aria-pressed="${!!s.chapter}">Watched</button>
+      </div>`;
+  const word = PROGRESS_LABEL[s.kind] || 'Progress';
+  return `
+      <span class="lbl">${esc(word)}</span>
+      <div class="stepper">
+        <button data-step="-1" aria-label="Back one ${esc(word.toLowerCase())}">−</button>
+        <input type="number" id="e-chapter" inputmode="numeric" min="0"
+               value="${s.chapter === null ? '' : esc(fmt(s.chapter))}" placeholder="—">
+        <button data-step="1" aria-label="On one ${esc(word.toLowerCase())}">+</button>
+      </div>` + (s.kind !== 'Reading' ? '' : `
+      <div class="field" style="margin:12px 0 0">
+        <span class="lbl">Tome — optional</span>
+        <div class="stepper">
+          <button data-tome="-1" aria-label="Back one tome">−</button>
+          <input type="number" id="e-tome" inputmode="numeric" min="0"
+                 value="${s.tome === null ? '' : esc(fmt(s.tome))}" placeholder="not counting">
+          <button data-tome="1" aria-label="On one tome">+</button>
+        </div>
+      </div>`);
+}
+
+function drawProgress(type){
+  const s = byId(S.open);
+  const box = $('#e-progress');
+  if (!s || !box) return;
+  // Read the fields back off the DOM first, so redrawing after a type change
+  // does not throw away a number he just typed.
+  const live = { ...s };
+  const ch = $('#e-chapter'), tm = $('#e-tome'), on = $('#e-progress [data-watched][aria-pressed=true]');
+  if (ch) live.chapter = ch.value.trim() === '' ? null : Number(ch.value);
+  if (tm) live.tome = tm.value.trim() === '' ? null : Number(tm.value);
+  if (on) live.chapter = on.dataset.watched === '1' ? (s.chapter || 1) : null;
+  box.innerHTML = progressField(live, type);
+}
 
 function openSheet(id){
   const s = byId(Number(id));
@@ -989,6 +1053,11 @@ function openSheet(id){
   const picks = (key, vals, cur) => vals.map(v =>
     `<button class="pick" data-${key}="${esc(v)}" data-v="${esc(v)}"
        aria-pressed="${v === cur}">${esc(v)}</button>`).join('');
+  // Many-of, and the only difference in the markup is that nothing clears the
+  // others when one is pressed. Setting and Genre are lists; the shelf is not.
+  const many = (axis, cur) => ((m.words || {})[axis] || []).map(v =>
+    `<button class="pick" data-many="${axis}" data-v="${esc(v)}"
+       aria-pressed="${cur.includes(v)}">${esc(v)}</button>`).join('');
 
   $('#sheet').innerHTML = `
     <div class="sheet-top">
@@ -998,15 +1067,7 @@ function openSheet(id){
       <button class="ico" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="sheet-body">
-      <div class="field">
-        <span class="lbl">${esc(PROGRESS_LABEL[s.kind] || 'Progress')}</span>
-        <div class="stepper">
-          <button data-step="-1" aria-label="Back one chapter">−</button>
-          <input type="number" id="e-chapter" inputmode="numeric" min="0"
-                 value="${s.chapter === null ? '' : esc(fmt(s.chapter))}" placeholder="—">
-          <button data-step="1" aria-label="On one chapter">+</button>
-        </div>
-      </div>
+      <div class="field" id="e-progress">${progressField(s, s.type)}</div>
 
       <div class="field">
         <span class="lbl">Rating</span>
@@ -1019,13 +1080,13 @@ function openSheet(id){
       </div>
 
       <div class="field">
-        <span class="lbl">Kind</span>
-        <div class="picks">${picks('kind', m.kind, s.kind)}</div>
+        <span class="lbl">Shelf — where you are with it</span>
+        <div class="picks">${picks('status', m.status, s.status)}</div>
       </div>
 
       <div class="field">
-        <span class="lbl">Shelf — where you are with it</span>
-        <div class="picks">${picks('status', m.status, s.status)}</div>
+        <span class="lbl">Type</span>
+        <div class="picks" id="e-types">${picks('type', typeNames(s.kind), s.type)}</div>
       </div>
 
       <div class="field">
@@ -1034,23 +1095,13 @@ function openSheet(id){
       </div>
 
       <div class="field">
-        <span class="lbl">Type</span>
-        <div class="picks" id="e-types">${
-          picks('type', (m.typesByKind || {})[s.kind] || m.type, s.type)}</div>
+        <span class="lbl">Setting — where it takes place</span>
+        <div class="picks many" id="e-setting">${many('setting', s.setting)}</div>
       </div>
 
       <div class="field">
-        <span class="lbl">Tags</span>
-        <div class="tagbox" id="e-tagbox"></div>
-        <input type="text" id="e-tag-add" list="taglist" placeholder="Add a tag, then Enter">
-        <datalist id="taglist">${S.data.tags.axes.map(a =>
-          a.tags.map(c => `<option value="${esc(c.tag)}" label="${
-            esc(AXIS_LABEL[a.axis] || a.axis)}">`).join('')).join('')}</datalist>
-      </div>
-
-      <div class="field">
-        <span class="lbl">Notes</span>
-        <textarea id="e-notes" rows="3" placeholder="Anything worth remembering">${esc(s.notes)}</textarea>
+        <span class="lbl">Genre — what it feels like</span>
+        <div class="picks many" id="e-genre">${many('genre', s.genre)}</div>
       </div>
 
       <div class="field">
@@ -1068,9 +1119,9 @@ function openSheet(id){
 
       <p class="meta">
         Added ${esc(ago(s.created))} · last changed ${esc(ago(s.updated))}<br>
-        ${s.logCount ? `${s.logCount} chapter change${s.logCount === 1 ? '' : 's'} recorded${
+        ${s.logCount ? `${s.logCount} change${s.logCount === 1 ? '' : 's'} recorded${
           s.lastRead ? `, most recently ${esc(ago(s.lastRead))}` : ''}`
-          : 'No chapter changes recorded yet'}
+          : 'No progress recorded yet'}
       </p>
     </div>
     <div class="sheet-foot">
@@ -1078,21 +1129,11 @@ function openSheet(id){
       <button class="btn primary" data-save>Save</button>
     </div>`;
 
-  sheetTags = [...s.tags];
-  drawTags();
   $('#veil').classList.add('open');
   $('#sheet').classList.add('open');
   $('#sheet').setAttribute('aria-hidden', 'false');
   document.body.classList.add('locked');
   $('#sheet .sheet-body').scrollTop = 0;
-}
-
-function drawTags(){
-  const box = $('#e-tagbox');
-  if (!box) return;
-  box.innerHTML = sheetTags.map((t, i) =>
-    `<span>${esc(t)}<button data-untag="${i}" aria-label="Remove ${esc(t)}">×</button></span>`
-  ).join('') || '<span style="border:0;color:var(--ink-3);padding:0">none</span>';
 }
 
 function closeSheet(){
@@ -1103,22 +1144,31 @@ function closeSheet(){
   document.body.classList.remove('locked');
 }
 
+const pressed = sel => [...document.querySelectorAll(sel + ' .pick[aria-pressed=true]')]
+  .map(b => b.dataset.v);
+
 async function saveSheet(){
   const id = S.open;
   if (!id) return;
-  const chapRaw = $('#e-chapter').value.trim();
+  const num = el => !el || el.value.trim() === '' ? null : Number(el.value);
+  const watched = $('#e-progress [data-watched][aria-pressed=true]');
   const fields = {
     title:   $('#e-title').value.trim(),
-    chapter: chapRaw === '' ? null : Number(chapRaw),
+    // A film's progress is a switch, and 1 is the only number behind it.
+    chapter: watched ? (watched.dataset.watched === '1' ? 1 : null)
+                     : num($('#e-chapter')),
+    tome:    num($('#e-tome')),
     rating:  $('#e-rating-out').textContent === '—' ? null : Number($('#e-rating').value),
-    kind:    $('#sheet [data-kind][aria-pressed=true]')?.dataset.kind || '',
     status:  $('#sheet [data-status][aria-pressed=true]')?.dataset.status || '',
     pub:     $('#sheet [data-pub][aria-pressed=true]')?.dataset.pub || '',
     type:    $('#sheet [data-type][aria-pressed=true]')?.dataset.type || '',
-    tags:    sheetTags,
+    setting: pressed('#e-setting'),
+    genre:   pressed('#e-genre'),
     cover:   $('#e-cover').value.trim(),
-    notes:   $('#e-notes').value.trim(),
   };
+  // Watching has no tome field at all, so sending null would clear a number
+  // that is not on screen to be changed.
+  if (S.kind !== 'Reading') delete fields.tome;
   try {
     const r = await api('/api/update', { id, fields });
     closeSheet();
@@ -1176,6 +1226,7 @@ async function bump(id){
   const s = byId(Number(id));
   if (!s) return;
   const before = { chapter: s.chapter, status: s.status };
+  const once = s.progress === 'once';
   try {
     const r = await api('/api/bump', { id: s.id, by: 1, resume: true });
     const now = r.series;
@@ -1184,7 +1235,10 @@ async function bump(id){
     S.data.history = r.history;
     render();
     const moved = now.status !== before.status;
-    toast(`${now.title} — chapter ${fmt(now.chapter)}${moved ? ` · moved to ${now.status}` : ''}`,
+    // "chapter 1" on a film is the sentence that made this whole field wrong.
+    const said = once ? 'watched'
+      : `${(PROGRESS_LABEL[now.kind] || 'progress').toLowerCase()} ${fmt(now.chapter)}`;
+    toast(`${now.title} — ${said}${moved ? ` · moved to ${now.status}` : ''}`,
       { label:'Undo', run: async () => {
           try { await api('/api/update', { id: s.id, fields: before }); await load();
                 toast('Put back'); }
@@ -1193,20 +1247,12 @@ async function bump(id){
   } catch (e) { toast(e.message); }
 }
 
-async function mergeTags(v){
-  const losers = v.spellings.map(s => s.id).filter(id => id !== v.canonId);
-  try {
-    const r = await api('/api/tags/merge', { from: losers, to: v.canonId });
-    S.data = { series:r.series, stats:r.stats, meta:r.meta, tags:r.tags, history:r.history };
-    fillPickers();
-    render();
-    toast(`Merged into ${v.canon} — ${r.series_touched} series updated`);
-  } catch (e) { toast(e.message); }
-}
-
 /* ══ wiring ═══════════════════════════════════════════════════════════ */
 document.addEventListener('click', async ev => {
   const hit = sel => ev.target.closest(sel);
+
+  const door = hit('[data-door]');
+  if (door) return goTo(door.dataset.door);
 
   const bumpBtn = hit('[data-bump]');
   if (bumpBtn){ ev.stopPropagation(); return bump(bumpBtn.dataset.bump); }
@@ -1216,29 +1262,6 @@ document.addEventListener('click', async ev => {
 
   const tab = hit('.tab');
   if (tab){ S.view = 'shelf'; S.shelf = tab.dataset.s; return render(); }
-
-  const kindBtn = hit('.kind');
-  if (kindBtn){
-    S.kind = kindBtn.dataset.k;
-    S.view = 'shelf';
-    // The type filter belongs to a kind, so it cannot survive changing kind.
-    S.type = ''; if ($('#f-type')) $('#f-type').value = '';
-    fillPickers();
-    return render();
-  }
-
-  const tag = hit('[data-tag]');
-  if (tag){
-    const name = tag.dataset.tag, axis = axisOf(name);
-    for (const a of AXES){ S[a] = ''; $('#f-' + a).value = ''; }
-    if (AXES.includes(axis)){ S[axis] = name; $('#f-' + axis).value = name; }
-    S.view = 'shelf'; S.shelf = 'All';
-    $('#drawer').classList.add('open');
-    return render();
-  }
-
-  const merge = hit('[data-merge]');
-  if (merge) return mergeTags(JSON.parse(merge.dataset.merge));
 
   if (ev.target.id === 'e-cover-find') return openArt();
   if (hit('[data-art-close]')) return closeArt();
@@ -1271,10 +1294,10 @@ document.addEventListener('click', async ev => {
   if (hit('[data-trash]')){
     const s = byId(S.open);
     if (!s) return;
-    if (!confirm(`Remove “${s.title}” from the shelf?\n\nIts chapter history goes with it. This cannot be undone.`)) return;
+    if (!confirm(`Remove “${s.title}” from the shelf?\n\nIts history goes with it. This cannot be undone.`)) return;
     try { const r = await api('/api/delete', { id: s.id });
           closeSheet();
-          S.data = { series:r.series, stats:r.stats, meta:r.meta, tags:r.tags, history:r.history };
+          S.data = { series:r.series, stats:r.stats, meta:r.meta, history:r.history };
           fillPickers(); render();
           toast(`Removed “${r.title}”`); }
     catch (e) { toast(e.message); }
@@ -1288,26 +1311,40 @@ document.addEventListener('click', async ev => {
     return;
   }
 
-  const untag = hit('[data-untag]');
-  if (untag){ sheetTags.splice(Number(untag.dataset.untag), 1); return drawTags(); }
+  const tome = hit('[data-tome]');
+  if (tome){
+    const el = $('#e-tome');
+    el.value = Math.max(0, (Number(el.value) || 0) + Number(tome.dataset.tome));
+    return;
+  }
+
+  const watch = hit('[data-watched]');
+  if (watch){
+    for (const b of watch.closest('.switch').querySelectorAll('button'))
+      b.setAttribute('aria-pressed', String(b === watch));
+    return;
+  }
+
+  // Many-of: pressing one leaves the rest alone. That is the whole difference
+  // between Setting and Shelf, and it is one line.
+  const multi = hit('[data-many]');
+  if (multi){
+    multi.setAttribute('aria-pressed',
+      multi.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    return;
+  }
 
   // Single-choice pill groups: pressing the pressed one clears the field.
-  for (const key of ['kind','status','pub','type']){
-    const p = hit(`[data-${key}]`);
-    if (p && p.classList.contains('pick')){
-      const was = p.getAttribute('aria-pressed') === 'true';
-      p.closest('.picks').querySelectorAll('.pick')
+  for (const key of ['status','pub','type']){
+    const pill = hit(`[data-${key}]`);
+    if (pill && pill.classList.contains('pick')){
+      const was = pill.getAttribute('aria-pressed') === 'true';
+      pill.closest('.picks').querySelectorAll('.pick')
         .forEach(x => x.setAttribute('aria-pressed', 'false'));
-      p.setAttribute('aria-pressed', was ? 'false' : 'true');
-      // Changing kind changes what a type can be, and the old choice is
-      // almost certainly wrong now — a manhwa that became a game is not a
-      // Manhwa. Redraw the row and leave it unset.
-      if (key === 'kind' && !was){
-        const box = $('#e-types');
-        if (box) box.innerHTML = ((S.data.meta.typesByKind || {})[p.dataset.kind] || [])
-          .map(v => `<button class="pick" data-type="${esc(v)}" data-v="${esc(v)}"
-                       aria-pressed="false">${esc(v)}</button>`).join('');
-      }
+      pill.setAttribute('aria-pressed', was ? 'false' : 'true');
+      // A Show has episodes and a Movie does not, so changing the type changes
+      // what the progress control even is.
+      if (key === 'type') drawProgress(was ? '' : pill.dataset.type);
       return;
     }
   }
@@ -1319,13 +1356,6 @@ document.addEventListener('input', ev => {
 });
 
 document.addEventListener('keydown', ev => {
-  if (ev.target.id === 'e-tag-add' && ev.key === 'Enter'){
-    ev.preventDefault();
-    const v = ev.target.value.trim();
-    if (v && !sheetTags.includes(v)) sheetTags.push(v);
-    ev.target.value = '';
-    return drawTags();
-  }
   if (ev.key === 'Enter' && ev.target.closest('.sheet') &&
       ev.target.tagName === 'INPUT' && ev.target.type !== 'range'){
     ev.preventDefault(); return saveSheet();
@@ -1369,9 +1399,8 @@ document.addEventListener('click', ev => {
   if (!act) return;
   if (act.dataset.act === 'filter') $('#drawer').classList.toggle('open');
   if (act.dataset.act === 'new') $('#dlg').showModal();
+  if (act.dataset.act === 'home') goTo(null);
 });
-
-$('#n-kind').addEventListener('change', fillNewTypes);
 
 for (const [id, key] of [['#f-type','type'],['#f-pub','pub'],['#f-sort','sort'],
                         ...AXES.map(a => ['#f-' + a, a])])
@@ -1393,8 +1422,9 @@ $('#dlg-form').addEventListener('submit', async ev => {
   const title = $('#n-title').value.trim();
   if (!title) return;
   try {
+    // The kind is not asked for. It is the door he is standing in.
     const r = await api('/api/create', { title, fields: {
-      kind: $('#n-kind').value, type: $('#n-type').value,
+      kind: S.kind, type: $('#n-type').value,
       status: $('#n-status').value } });
     $('#n-title').value = '';
     await load();
@@ -1408,6 +1438,15 @@ $('#dlg-form').addEventListener('submit', async ev => {
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !S.open) load();
 });
+
+/* The hash is the only thing that says which tracker is open, so Back is the
+   way out of one and a reload lands where he left off. */
+function goTo(kind){
+  const want = kind ? '#' + slug(kind) : '#';
+  if (location.hash === want) enter(kind);   // no hashchange fires for a no-op
+  else location.hash = want;
+}
+addEventListener('hashchange', () => { if (S.data) enter(kindFromHash()); });
 
 load();
 </script>

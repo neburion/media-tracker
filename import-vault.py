@@ -17,9 +17,10 @@ to get wrong.
 
 The notes are Obsidian markdown with the tracked values in YAML frontmatter.
 This understands the small subset all 300 use — `Key: scalar`, and `Key:`
-followed by `  - item` lines — and folds everything it does not own (the one
-`Best Read:` line, note bodies) into a free-text `notes` field so nothing in
-the vault is silently dropped on the way across.
+followed by `  - item` lines. Everything it does not own — the one `Best Read:`
+line, and the note bodies — is reported at the end and left behind: the tracker
+carried it in a free-text `notes` field for a while, nothing ever read it back,
+and the field is gone.
 """
 import argparse
 import json
@@ -93,7 +94,7 @@ def read_series(path):
         "title": path.stem,
         "chapter": None, "rating": None,
         "status": "", "pub": "", "type": "", "cover": "",
-        "tags": [], "notes": "",
+        "tags": [],
     }
     leftovers = []
     for lower, (spelling, value) in fm.items():
@@ -114,8 +115,8 @@ def read_series(path):
         else:
             out[field] = str(value or "").strip()
 
-    notes = [n for n in ([body] + leftovers) if n]
-    out["notes"] = "\n".join(notes)
+    # Not carried across, only counted — see the module docstring.
+    out["_dropped"] = len([n for n in ([body] + leftovers) if n])
     return out
 
 
@@ -134,6 +135,10 @@ def main():
               if not p.name.startswith(".")]
     series.sort(key=lambda s: s["title"].lower())
 
+    # Counted for the report below, never written: seed.json is the shape the
+    # database has, and it has no column for a note body.
+    dropped = sum(1 for s in series if s.pop("_dropped", 0))
+
     payload = {
         "exported": date.today().isoformat(),
         "source": str(root),
@@ -149,7 +154,7 @@ def main():
     tags = Counter(t for s in series for t in s["tags"])
     print(f"  tags    {len(tags)} distinct, {sum(tags.values())} applied")
     print(f"  covers  {sum(1 for s in series if s['cover'])} of {len(series)}")
-    print(f"  notes   {sum(1 for s in series if s['notes'])} carry free text")
+    print(f"  dropped {dropped} note bodies left behind")
 
 
 if __name__ == "__main__":

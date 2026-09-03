@@ -1,6 +1,6 @@
 {
   "name": "media-tracker",
-  "summary": "Reading, watching and playing — one shelf, SQLite, no framework",
+  "summary": "Two trackers, reading and watching \u2014 SQLite, no framework",
   "runtime": "python3",
   "preStart": "seed.py",
   "run": "app.py",

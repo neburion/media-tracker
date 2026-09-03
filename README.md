@@ -2,10 +2,13 @@
 
 SQLite + a small web UI. Stdlib Python only — no Flask, no pip.
 
-Reading, anime, shows, films and games in one shelf. It began as a reading
-tracker, which is why the 921 series it started with are all filed under
-`Reading` and why the progress column in the database is still called
-`chapter`.
+**Two trackers, and you walk into one.** The app opens on a choice — Reading
+or Watching — and everything after that happens inside a single shelf: its own
+types, its own filters, its own statistics. There is no view that mixes them
+and nothing that asks which one a title belongs to, because the door answered
+that. It began as a reading tracker, which is why the 921 series it started
+with are all filed under `Reading` and why the progress column in the database
+is still called `chapter`.
 
 Deployed from `app.json` on `personal-server`: **http://personal-server:8778**
 on the tailnet, and publicly at **https://media.azuresalt.app** — and at
@@ -14,11 +17,11 @@ rather than a redirect, because a redirect would land on a hostname the saved
 Basic Auth credential is not scoped to and ask for the password every visit.
 The NixOS config reads `app.json` out of this repo and generates the unit,
 the system user, the state directory, the credential wiring, the firewall rule
-and both tunnels from it — see `modules/system/apps/platform.nix` there. There
+and both tunnels from it — see `modules/system/services/app-platform/` there. There
 is no Nix in this repo, and there does not need to be.
 
-918 series. 300 came from the **Reading-Ob** Obsidian vault on pod042; the
-other 617 from an Anime-Planet export (`export-manga-Jacine0520.json`) of an
+944 series, 939 of them Reading. 300 came from the **Reading-Ob** Obsidian
+vault on pod042; the other 617 from an Anime-Planet export (`export-manga-Jacine0520.json`) of an
 older account, imported 2026-08-17. Both are snapshots — see below.
 
 ## Files
@@ -29,8 +32,9 @@ older account, imported 2026-08-17. Both are snapshots — see below.
 | `fonts/` | the webfonts, as woff2 — self-hosted, so a checkout looks like the deploy |
 | `schema.sql` | tables, views, FTS5 index |
 | `seed.json` | the origin snapshot: 300 vault series + 617 from Anime-Planet |
-| `tags.json` | every title classified on the two tag axes, applied once |
+| `tags.json` | every title's setting and genre, applied once |
 | `anime-planet.json` | publication status + type looked up on Anime-Planet, applied once |
+| `verified.json` | the handful Anime-Planet got wrong, confirmed one at a time |
 | `seed.py` | builds the database; **additive**, never overwrites your edits |
 | `app.py` | HTTP server + JSON API + cover cache |
 | `ui.html` | the UI |
@@ -91,87 +95,136 @@ The vault could only ever describe the present: one note per series, each
 frontmatter key overwritten in place. Two things follow from owning a real
 schema.
 
-**History.** `reading_log` and `status_log` append on every chapter and status
+**History.** `reading_log` and `status_log` append on every progress and status
 change, so the shelf can answer *what have I actually been reading lately* —
-which the notes threw away every time it was answered. The **history** view and
-the "this week / this month" figures come from there.
+which the vault threw away every time it was answered. Watching a film writes a
+row too, which makes the log double as the date you saw it. `/api/history`
+serves it; there is no screen for it, see below.
 
-**Integrity.** Status, publication and medium are three closed vocabularies with
+**Integrity.** Status, publication and medium are closed vocabularies with
 foreign keys rather than free text, which is how the vault ended up with one
-note reading `Publication Status: Hold` where every other says Hiatus. Tags are
-a real many-to-many, so merging two spellings is one `UPDATE` on the join table
-instead of rewriting eleven files.
+note reading `Publication Status: Hold` where every other says Hiatus. Setting
+and genre are a real many-to-many, so renaming a word is one `UPDATE` rather
+than a rewrite of eleven files.
 
-One check is deliberately loose. **Mushoku Tensei is rated −10.** That is not
-corrupt data, it is an opinion, and clamping it to fit a 0–10 scale would be
-editing a verdict to suit a schema — so the range admits it and the UI slider
-goes down to −10.
+## Two trackers, and a door for each
 
-## Kind is the axis above everything
-
-Three verbs, because that is how many ways there are to be partway through
-something here.
-
-| kind | progress counts | types |
+| tracker | progress counts | types |
 |---|---|---|
-| Reading | `ch` | Manhwa, Manhua, Manga, Web Novel, Indonesian Comic |
-| Watching | `ep` | TV, Series, Miniseries, Film, Short, OVA, ONA, Special, Documentary |
-| Playing | `hrs` | PC, Console, Handheld, Mobile |
+| Reading | `ch`, and an optional `tome` | Manhwa, Manhua, Manga, Web Novel, Indonesian Comic |
+| Watching | `ep`, or nothing at all | Show, Anime, Movie, Animated Movie |
 
-Everything else in the schema was already kind-agnostic and needed no change:
-status, rating, tags and both history tables mean the same thing about a book,
-a season and a playthrough. Only two things vary by kind, and both live on the
-`kind` row — what `type` may be, and what the progress number counts.
+`kind` is no longer a filter and never appears as a menu. It used to be a strip
+of chips above the shelves with an **All** in front of them, which meant every
+session began by pressing past a view that mixed nine hundred manhwa into five
+films, and every new title began with a question the shelf you were standing in
+had already answered. Now the app opens on two cards, the tracker lives in the
+URL hash — `#reading`, `#watching` — so a reload lands where you left off and
+Back walks you out of a tracker rather than off the page, and the header, the
+filters, the statistics and the add dialog all belong to one of them.
+
+Everything else in the schema is tracker-agnostic and needed no change: status,
+rating, setting, genre and both history tables mean the same thing about a book
+and a season.
 
 **Anime, Shows and Films were three kinds for one activity.** Nothing below
 them differed: same shelves, same ratings, same tags, the same episode counter
 spelled out twice. The split bought a filter answering a question nobody asks
 and charged for it up front, by making "is this an anime film or a film" a
-thing to settle before typing a title. What the thing *is* still lives on
-`type`, one level down, which is where a distinction belongs when it is a real
-one. `Movie` went with them: it was the word `Film` wearing an anime badge.
+thing to settle before typing a title. What the thing *is* lives on `type`, one
+level down, which is where a distinction belongs when it is a real one.
 
-The cost, stated plainly: Films used to carry no unit at all, on the argument
-that you have watched a film or you have not and a half-watched one is a Hold.
-Sharing a kind means sharing a unit, so a film is now `1 ep` when it is done.
-That is the price of not having to file a documentary twice.
+**Playing is gone.** One playthrough was ever filed under it, games have their
+own tracker, and a third door onto a shelf of one is a door you press past every
+time you open the app. `Elden Ring` and its history went with the kind — see
+`two-trackers` in `seed.py`.
 
-`kind-three-verbs` in `seed.py` does it by **renaming** — Anime becomes the
-Watching row and Games becomes Playing — so `kind_id` keeps pointing where it
-did and nothing is re-filed. Shows and Films hand their types over first and
-are deleted after, because `type.kind_id` is `ON DELETE SET NULL` and dropping
-a kind out from under Series and Miniseries would strand them in no menu.
+### A film is watched or it is not
 
-The shelves are no longer **Reading** and **Read**. Those named the medium
-rather than the state, and a game sitting on a shelf called Reading reads as a
-bug. They are **Current** and **Finished**; the ids did not change, so every
-status change already in `status_log` still resolves.
+Progress used to be a property of the kind, so a film in the Watching tracker
+got an episode counter and read `1 ep` when it was done. That was the unit
+leaking onto a type that does not have one.
 
-The progress column is still called `chapter` in the database. Renaming it
-would mean rewriting the view, both history tables, every read and write in
-`app.py` and the whole of `ui.html`, against a live database with reading
-history hanging off it — a lot of blast radius for a word. What it *means* is
-carried by `kind.unit`, which is the part anyone sees.
+`type.progress` fixes it at the level where the difference actually lives:
 
-## Tags are on two axes
+- `''` — you count, in the tracker's unit. Chapters of a manhwa, episodes of a
+  Show or an Anime.
+- `'once'` — you do not count. A Movie or an Animated Movie is watched or it is
+  not, the card reads `WATCHED` / `UNWATCHED`, the sheet's stepper is a switch,
+  and the `+` on the card is a tick that disappears once it is pressed.
+
+Underneath it is still the `chapter` column holding 1 or nothing, so watching a
+film still writes a dated row to `reading_log` — which makes the log double as
+the date you saw it. Change a Movie to a Show in the sheet and the control
+redraws into a counter without a save, because the type you are picking is the
+thing that decides which control it should be.
+
+### Tomes
+
+`series.tome`, nullable, Reading only, and optional in the real sense: null
+means you are not counting volumes, which is most of the shelf. It shows on the
+card as `T 12` beside the chapter when it is set and not at all when it is not.
+
+Deliberately **not** logged. `reading_log` is about chapters, and a second unit
+in it would make *what have I been reading* a question with two answers.
+
+### Nine broadcast formats became four words
+
+Watching used to carry TV, Series, Miniseries, Film, Short, OVA, ONA, Special
+and Documentary — a taxonomy of how a thing was distributed, not of what it is.
+Two questions cover it: is it animated, and does it have episodes. So: **Show,
+Anime, Movie, Animated Movie.**
+
+`two-trackers` in `seed.py` renames rather than re-files, so `type_id` keeps
+pointing where it did — `Series` *is* `Show` now and `Film` *is* `Movie`. The
+rest are dropped only where nothing was filed under them, because retyping
+somebody's library is not a rename.
+
+### Shelves are Current and Finished
+
+They were **Reading** and **Read**, which named the medium rather than the
+state. The ids did not change, so every status change already in `status_log`
+still resolves.
+
+### The progress column is still called `chapter`
+
+Renaming it would mean rewriting the view, both history tables, every read and
+write in `app.py` and the whole of `ui.html`, against a live database with
+reading history hanging off it — a lot of blast radius for a word. What it
+*means* is carried by `kind.unit` and `type.progress`, which is the part anyone
+sees.
+
+## Setting and Genre are fields, not tags
 
 The vault's tags were a flat pile of 59, written by hand over years, in which
 `Fantasy` (half the shelf), `Transmigrassion` (a typo, 109 series) and `Boxing`
 (one series) were peers in one alphabetical menu. Eighteen of the 59 were used
 twice or less, and six were the same tag spelled two ways.
 
-They are now a closed vocabulary of 25, and every one of them answers exactly
-one question:
+They are now a closed vocabulary of 25 split across two questions, and the app
+does not call them tags at all — it shows two named fields:
 
-| axis | question | e.g. |
+| field | the question | e.g. |
 |---|---|---|
-| **setting** | where does it take place | Fantasy, Murim, Wuxia, Modern, Hunter Fantasy, Apocalypse, Academy |
-| **genre** | what does reading it feel like | Action, Adventure, Romance, Horror, Slice of Life |
+| **Setting** | where does it take place | Fantasy, Murim, Wuxia, Modern, Hunter Fantasy, Apocalypse, Academy |
+| **Genre** | what does it feel like | Action, Adventure, Romance, Horror, Slice of Life |
 
-The axis is a column on `tag`, and it is what makes the filters work: two tag
-dropdowns holding different kinds of thing, ANDed, rather than one 59-item menu
-in which picking Fantasy meant not picking Action. A tag typed straight into the
-sheet gets no axis and shows up under **Unfiled** until it is given one.
+Both are **picked, not typed**. The sheet shows every word in the vocabulary as
+a pill you click, many-of, with a square corner where the single-choice rows
+are round. There is no free-text box and no `datalist`, which is the point: a
+list you choose from cannot grow a second spelling of a word it already has.
+
+That removed a whole screen. The **Tags** view existed to show a tag cloud and
+to merge two spellings of one word — `tag_key()`, the variant detector, the
+merge panel and `POST /api/tags/merge` are all gone with it, because with a
+closed vocabulary there is nothing left for them to find. The cloud they
+replaced is two dropdowns in the filter drawer, ANDed, so choosing a setting
+*and* a genre is one query rather than a choice between them.
+
+They stay two columns end to end: `axis` on `tag`, two lists off `v_series`,
+two arrays in the API, and two separate writes in `update_series()` — writing
+Setting deletes only rows on the setting axis, because both live in one join
+table and clearing it wholesale would take Genre with it.
 
 There was a third axis for a while — **premise**, holding Transmigration,
 Regression, System, Revenge and eleven more. It described the shelf accurately
@@ -193,18 +246,22 @@ for the ~380 whose titles give nothing away. Each axis is capped (2 settings,
 it is the synopsis again.
 
 It is applied **once**, as a recorded migration, not on every start: replacing a
-series' tags is destructive of anything typed by hand, and a seeder that
+series' words is destructive of anything set by hand, and a seeder that
 re-applied it would undo your edits on the next reboot. That is the same reason
 `seed_applied` exists — see below.
 
-### Spellings
+## Notes are gone
 
-`tag_key()` still backs a merge tool in the **Tags** view — case-folded,
-non-alphanumerics stripped — for spellings typed into the sheet by hand. It is
-a net now rather than the standing condition it was when the tags came out of
-the vault, so the panel only appears when there is something in it. The merge
-inserts before it deletes, because a series carrying *both* spellings has to end
-up with one row rather than a primary-key violation.
+618 series carried a `notes` field: whatever `import-vault.py` could not model,
+folded into free text so nothing in the vault was silently dropped on the way
+across. Nothing ever read it back. The column is dropped, the textarea is out of
+the sheet, and `notes` is out of the FTS index — which meant taking `v_series`
+and `series_fts` down and rebuilding both, since SQLite will not drop a column
+anything else is built over. `seed.py` reindexes all 945 rows on the start that
+does it.
+
+This is a real deletion and there is no undo. `import-vault.py` no longer emits
+the field either; it counts the note bodies it left behind and says so.
 
 ## Vocabularies, and what each one is asking
 
@@ -214,9 +271,9 @@ fact confused two of them:
 
 | field | the question | values |
 |---|---|---|
-| **status** — *Shelf* | where **you** are with it | Reading, Later, Hold, Read, Dropped |
+| **status** — *Shelf* | where **you** are with it | Current, Later, Hold, Finished, Dropped |
 | **pub** — *Publication status* | whether the **author** is still writing it | Ongoing, Hiatus, Completed, Cancelled |
-| **type** — *Type* | what it is | Manhwa, Manhua, Manga, Web Novel, Indonesian Comic |
+| **type** — *Type* | what it is | per tracker: Manhwa, Manhua, Manga, Web Novel, Indonesian Comic — or Show, Anime, Movie, Animated Movie |
 
 `Hold` used to appear in *both* status and pub, on the strength of one vault
 note reading `Publication Status: Hold`. Hold is a shelf. That value is retired
@@ -227,10 +284,10 @@ describing what it will accept — "Any publication" told you what the menu held
 and never what it was for. **Order** comes first, being the one control that
 changes the shelf rather than narrowing it.
 
-The filters do not survive leaving the shelf. Going to Stats or Tags clears
-them and hides the control that opens them, because the alternative was
-returning to a shelf quietly showing a third of itself with the only evidence a
-lit icon inside a closed drawer.
+The filters do not survive leaving the shelf. Going to Stats, or out to the two
+doors, clears them and hides the control that opens them, because the
+alternative was returning to a shelf quietly showing a third of itself with the
+only evidence a lit icon inside a closed drawer.
 
 ## Ratings are 0–10
 
@@ -241,7 +298,14 @@ a negative. Databases created before the change keep the wider `CHECK`, since
 rebuilding a table to tighten a constraint is not worth the risk to the reading
 history hanging off it, and nothing can write a negative through it anyway.
 
-## Stats has no recommendations, and no clock
+## Stats is per tracker, with no recommendations and no clock
+
+`/api/library` returns `stats` keyed by tracker, and the page shows one of them.
+A mean rating over nine hundred manhwa and five films was a number about no
+shelf in particular. Watching counts episodes and, separately, films watched —
+a film contributes no episodes, because counting each as one would put a number
+in the tally that means something else.
+
 
 It used to end with two lists — *shelved and now complete*, *on hold and still
 publishing* — computed by joining status against pub. Those were not statistics.
@@ -253,16 +317,19 @@ rather than a nudge.
 The *this week* / *this month* chapter counters are gone too. The reading log
 they were computed from is still written on every chapter change — see below.
 
-## No reading-history view, and no light mode
+## No reading-history view, no Tags view, and no light mode
 
+The first is a removal of a screen, not of a capability. `reading_log` is still
+appended on every chapter change and `/api/history` still answers; there is
+simply no tab for it. Putting the view back is a dock button and a
+`renderHistory()`. Deleting the log to hide a tab would have been the expensive
+half of a cheap decision — a note can only ever hold the number you are on now,
+which is the whole reason this is a database.
 
-Both are removals of a screen, not of a capability.
-
-`reading_log` is still appended on every chapter change and `/api/history` still
-answers; there is simply no tab for it. Putting the view back is a dock button
-and a `renderHistory()`. Deleting the log to hide a tab would have been the
-expensive half of a cheap decision — a note can only ever hold the number you
-are on now, which is the whole reason this is a database.
+The Tags view is the opposite: the capability went first and the screen followed.
+It existed to merge two spellings of one word, and words are picked from a
+closed list now. Its dock slot is **Trackers**, the way back out to the two
+doors.
 
 The theme is dark, full stop: no toggle, no `prefers-color-scheme`, no stored
 preference.
@@ -478,8 +545,8 @@ python3 app.py --stats                     # print the shelf and exit
 python3 app.py --warm-covers
 ```
 
-Overrides: `RT_DB`, `RT_SEED`, `RT_SCHEMA`, `RT_UI`, `RT_FONTS`, `RT_CACHE`,
-`RT_HOST`, `RT_PORT`, `RT_USERNAME`, `RT_PASSWORD`.
+Overrides: `MT_DB`, `MT_SEED`, `MT_SCHEMA`, `MT_UI`, `MT_FONTS`, `MT_CACHE`,
+`MT_HOST`, `MT_PORT`, `MT_USERNAME`, `MT_PASSWORD`.
 
 `media-tracker --stats` is also on `PATH` on the host.
 
@@ -487,15 +554,14 @@ Overrides: `RT_DB`, `RT_SEED`, `RT_SCHEMA`, `RT_UI`, `RT_FONTS`, `RT_CACHE`,
 
 | method | path | body / query |
 |---|---|---|
-| GET | `/api/library` | every series, plus stats, vocabularies, tags, history |
-| GET | `/api/search?q=…` | FTS5 prefix search over title, tags, type, notes |
-| GET | `/api/history` | the last 200 chapter changes |
+| GET | `/api/library` | both trackers in one array, plus per-tracker stats, vocabularies, history |
+| GET | `/api/search?q=…` | FTS5 prefix search over title, setting, genre, type |
+| GET | `/api/history` | the last 200 progress changes |
 | GET | `/api/export` | portable JSON keyed on title |
 | POST | `/api/update` | `{id, fields}` — partial; returns which fields changed |
-| POST | `/api/bump` | `{id, by, resume}` — chapter +1, optionally un-shelving it |
-| POST | `/api/create` | `{title, fields}` |
-| POST | `/api/delete` | `{id}` — cascades tags and both logs |
-| POST | `/api/tags/merge` | `{from:[tag ids], to: tag id}` |
+| POST | `/api/bump` | `{id, by, resume}` — one more chapter or episode, or marks a film watched; optionally un-shelves it |
+| POST | `/api/create` | `{title, fields}` — `fields.kind` is the tracker, sent by the client because it is the door it is standing in |
+| POST | `/api/delete` | `{id}` — cascades setting, genre and both logs |
 
 A field whose value did not change is not written and does not appear in
 `changed`, so the logs record real edits rather than every Save.
@@ -504,14 +570,14 @@ A field whose value did not change is not written and does not appear in
 
 HTTP Basic Auth, on whenever a password is present — the systemd credential
 `password` (the `media-tracker-password` sops secret in
-`secrets/personal-server.yaml`) or `$RT_PASSWORD`. Without one the app refuses
+`secrets/personal-server.yaml`) or `$MT_PASSWORD`. Without one the app refuses
 to bind anything but loopback, so a misconfigured deploy fails to start rather
 than putting a writable API on the network. The username is `tracker` and lives
 in `app.json` as `MT_USERNAME`, since it is not a secret. Failed attempts are rate-limited to
 20 per hour per client IP, read from `CF-Connecting-IP` so the tunnel does not
 bucket the whole internet into one key.
 
-A successful login also sets `rt_session`, a signed cookie good for 30 days and
+A successful login also sets `mt_session`, a signed cookie good for 30 days and
 re-issued whenever it drops under 21 days left, so the password is typed about
 once a month instead of once per browser session — which on a phone was most
 times the app was opened. The cookie is a signed expiry timestamp rather than a

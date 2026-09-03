@@ -5,3 +5,7 @@ media.db-wal
 media.db-shm
 covers/
 .cache/
+
+# app.py imports seed.py for its vocabularies and helpers, so a checkout grows
+# a __pycache__ the moment it is run. Build output, not source.
+__pycache__/

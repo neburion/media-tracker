@@ -28,7 +28,6 @@ import re
 import sqlite3
 import threading
 import time
-import unicodedata
 import urllib.request
 import webbrowser
 from collections import Counter, defaultdict, deque
@@ -171,18 +170,25 @@ def row_to_series(r):
         "id": r["id"],
         "title": r["title"],
         "kind": r["kind"],
-        # What `chapter` counts for this kind — "ch", "ep", "hrs", or nothing
-        # at all for a film. The number is generic; the word is not.
+        # What `chapter` counts for this row — "ch" or "ep" — resolved by the
+        # view from the kind, unless the type says it is not counted at all.
         "unit": r["unit"],
+        # '' if it counts, 'once' if it is watched or it is not. The number is
+        # generic; how to read it is not.
+        "progress": r["progress"],
         "chapter": r["chapter"],
+        # Volumes, when he is keeping them. Null on most of the shelf.
+        "tome": r["tome"],
         "rating": r["rating"],
         "status": r["status"],
         "pub": r["pub"],
         "type": r["type"],
-        "tags": r["tags"].split(SEP) if r["tags"] else [],
+        # Two fields, not one list split by axis later. The view already knew
+        # which was which.
+        "setting": r["setting"].split(SEP) if r["setting"] else [],
+        "genre": r["genre"].split(SEP) if r["genre"] else [],
         "cover": cover,
         "coverId": cover_id(cover) if cover else "",
-        "notes": r["notes"] or "",
         "created": r["created_at"],
         "updated": r["updated_at"],
         "logCount": r["log_count"],
@@ -208,125 +214,69 @@ def kinds(db):
 
 
 def types_by_kind(db):
-    """{kind: [type…]} — a Manhwa menu on a game is noise."""
+    """{kind: [{name, progress}…]} — a Manhwa menu inside Watching is noise.
+
+    Progress rides along because it is what the sheet needs to know before it
+    can draw the field: a Show gets a stepper, a Movie gets a switch.
+    """
     out = defaultdict(list)
     for r in db.execute("""
-            SELECT t.name AS type, COALESCE(k.name, '') AS kind
+            SELECT t.name AS type, t.progress, COALESCE(k.name, '') AS kind
             FROM type t LEFT JOIN kind k ON k.id = t.kind_id
             ORDER BY t.pos"""):
-        out[r["kind"]].append(r["type"])
+        out[r["kind"]].append({"name": r["type"], "progress": r["progress"]})
     return dict(out)
+
+
+def words(db):
+    """{axis: [word…]} in vocabulary order — the Setting and Genre pickers.
+
+    Straight off `tag`, ordered by seed.py's own list rather than by how often
+    a word is used: a menu whose items move every time you file something is a
+    menu you have to read every time.
+    """
+    order = {name: i for names in S.TAGS.values() for i, name in enumerate(names)}
+    out = {}
+    for axis in S.TAGS:
+        names = [r["name"] for r in db.execute(
+            "SELECT name FROM tag WHERE axis = ?", (axis,))]
+        out[axis] = sorted(names, key=lambda n: (order.get(n, 1e9), n))
+    return out
 
 
 def vocab(db):
     """The closed sets, in their stored presentation order."""
     out = {name: [r["name"] for r in
                   db.execute(f"SELECT name FROM {name} ORDER BY pos")]
-           for name in ("status", "pub", "type")}
+           for name in ("status", "pub")}
     out["kind"] = [k["name"] for k in kinds(db)]
     out["units"] = {k["name"]: k["unit"] for k in kinds(db)}
     out["typesByKind"] = types_by_kind(db)
+    out["words"] = words(db)
     return out
-
-
-# --------------------------------------------------------------------- tags
-#
-# The vault was hand-written over years, so the same tag exists in several
-# spellings — HunterFantasy and Hunter Fantasy, SchoolLife and School Life.
-# They mean one thing and filter as two. Merging them is now a single UPDATE on
-# the join table rather than a rewrite of eleven files, but it is still a
-# deliberate button press: folding them silently would be deciding for the user
-# which spelling was the mistake.
-
-def tag_key(t):
-    t = unicodedata.normalize("NFKD", t or "")
-    return re.sub(r"[^a-z0-9]+", "", t.lower())
-
-
-def tag_report(db):
-    rows = db.execute("""
-        SELECT t.id, t.name, t.axis, COUNT(st.series_id) AS n
-        FROM tag t LEFT JOIN series_tag st ON st.tag_id = t.id
-        GROUP BY t.id ORDER BY n DESC, t.name
-    """).fetchall()
-
-    spellings = defaultdict(list)
-    for r in rows:
-        spellings[tag_key(r["name"])].append(r)
-
-    variants = []
-    for group in spellings.values():
-        if len(group) > 1:
-            # The most-used spelling survives; ties go to the longest, which is
-            # the spaced form and the more readable one.
-            best = max(group, key=lambda r: (r["n"], len(r["name"])))
-            variants.append({
-                "canon": best["name"],
-                "canonId": best["id"],
-                "spellings": [{"id": r["id"], "tag": r["name"], "count": r["n"]}
-                              for r in sorted(group, key=lambda r: -r["n"])],
-            })
-    variants.sort(key=lambda v: -sum(s["count"] for s in v["spellings"]))
-    counts = [{"id": r["id"], "tag": r["name"], "axis": r["axis"] or "",
-               "count": r["n"]} for r in rows if r["n"]]
-    # Grouped for the UI, in the vocabulary's own order rather than by count —
-    # a menu whose items move every time you tag something is a menu you have
-    # to read every time. Anything the user typed himself lands in "other".
-    order = {name: i for i, name in enumerate(
-        n for names in S.TAGS.values() for n in names)}
-    axes = []
-    for axis in list(S.TAGS) + ["other"]:
-        want = axis if axis != "other" else ""
-        members = [c for c in counts if (c["axis"] or "") == want]
-        if members:
-            members.sort(key=lambda c: (order.get(c["tag"], 1e9), c["tag"]))
-            axes.append({"axis": axis, "tags": members})
-    return {"counts": counts, "axes": axes, "variants": variants}
-
-
-def merge_tags(db, source_ids, target_id):
-    """Fold one or more tag spellings into another.
-
-    INSERT OR IGNORE first, then delete: a series carrying both spellings must
-    end up with one row, not a primary-key violation.
-    """
-    source_ids = [int(i) for i in source_ids if int(i) != int(target_id)]
-    if not source_ids:
-        return 0, []
-    marks = ",".join("?" * len(source_ids))
-    touched = [r[0] for r in db.execute(
-        f"SELECT DISTINCT series_id FROM series_tag WHERE tag_id IN ({marks})",
-        source_ids)]
-    db.execute(
-        f"INSERT OR IGNORE INTO series_tag(series_id, tag_id) "
-        f"SELECT series_id, ? FROM series_tag WHERE tag_id IN ({marks})",
-        [target_id] + source_ids)
-    db.execute(f"DELETE FROM series_tag WHERE tag_id IN ({marks})", source_ids)
-    db.execute(f"DELETE FROM tag WHERE id IN ({marks})", source_ids)
-    for sid in touched:
-        S.reindex(db, sid)
-    db.commit()
-    return len(touched), touched
 
 
 # -------------------------------------------------------------------- stats
 
-def _bucket(db, table, column):
+def _bucket(db, table, column, kind_id):
+    """Series per vocabulary value, inside one tracker."""
     rows = db.execute(f"""
         SELECT v.name AS name, COUNT(s.id) AS n
-        FROM {table} v LEFT JOIN series s ON s.{column} = v.id
+        FROM {table} v LEFT JOIN series s
+          ON s.{column} = v.id AND s.kind_id = ?
         GROUP BY v.id ORDER BY v.pos
-    """).fetchall()
+    """, (kind_id,)).fetchall()
     out = [{"name": r["name"], "count": r["n"]} for r in rows if r["n"]]
     orphan = db.execute(
-        f"SELECT COUNT(*) FROM series WHERE {column} IS NULL").fetchone()[0]
+        f"SELECT COUNT(*) FROM series WHERE {column} IS NULL AND kind_id = ?",
+        (kind_id,)).fetchone()[0]
     if orphan:
         out.append({"name": "—", "count": orphan})
     return out
 
 
-def _tag_bucket(db):
-    """Series per tag, grouped by axis — the shape the stats panel wants.
+def _word_bucket(db, axis, kind_id):
+    """Series per setting, or per genre, inside one tracker.
 
     This is what replaced the two "shelved and now complete" / "on hold, still
     publishing" lists that used to sit at the bottom of Stats. Those were
@@ -334,46 +284,61 @@ def _tag_bucket(db):
     fields it had no business drawing a conclusion from. A breakdown of what
     the shelf actually contains is a statistic; a nudge is not."""
     rows = db.execute("""
-        SELECT t.axis, t.name, COUNT(st.series_id) AS n
+        SELECT t.name, COUNT(*) AS n
         FROM tag t JOIN series_tag st ON st.tag_id = t.id
-        GROUP BY t.id HAVING n > 0
-    """).fetchall()
-    out = []
-    for axis in list(S.TAGS) + ["other"]:
-        want = axis if axis != "other" else None
-        members = sorted(((r["name"], r["n"]) for r in rows if r["axis"] == want),
-                         key=lambda p: (-p[1], p[0]))
-        if members:
-            out.append({"axis": axis,
-                        "rows": [{"name": n, "count": c} for n, c in members]})
-    return out
+                   JOIN series s      ON s.id = st.series_id
+        WHERE t.axis = ? AND s.kind_id = ?
+        GROUP BY t.id ORDER BY n DESC, t.name
+    """, (axis, kind_id)).fetchall()
+    return [{"name": r["name"], "count": r["n"]} for r in rows]
 
 
 def stats(db):
-    total = db.execute("SELECT COUNT(*) FROM series").fetchone()[0]
-    agg = db.execute("""
-        SELECT CAST(COALESCE(SUM(chapter), 0) AS INTEGER) AS chapters,
-               COUNT(rating) AS rated,
-               ROUND(AVG(rating), 2) AS avg
-        FROM series
-    """).fetchone()
+    """One block per tracker, keyed by kind.
 
-    ratings = [{"score": int(r["b"]), "count": r["n"]} for r in db.execute("""
-        SELECT CAST(ROUND(rating) AS INTEGER) AS b, COUNT(*) AS n
-        FROM series WHERE rating IS NOT NULL GROUP BY b ORDER BY b""")]
+    Not one mixed page any more. A Watching shelf of five films and a Reading
+    shelf of nine hundred manhwa share a schema and nothing else, and a single
+    "mean rating" over both was a number about no shelf in particular. The app
+    is only ever inside one of them, so this is what it asks for.
+    """
+    out = {}
+    for r in db.execute("SELECT id, name, unit FROM kind ORDER BY pos"):
+        kid, kind = r["id"], r["name"]
+        agg = db.execute("""
+            SELECT COUNT(*) AS total,
+                   CAST(COALESCE(SUM(CASE WHEN u.progress = 'once' THEN 0
+                                          ELSE s.chapter END), 0) AS INTEGER) AS units,
+                   COUNT(CASE WHEN u.progress = 'once' AND s.chapter > 0
+                              THEN 1 END) AS done,
+                   COUNT(rating) AS rated,
+                   ROUND(AVG(rating), 2) AS avg
+            FROM series s LEFT JOIN type u ON u.id = s.type_id
+            WHERE s.kind_id = ?""", (kid,)).fetchone()
 
-    return {
-        "total": total,
-        "chapters": agg["chapters"],
-        "rated": agg["rated"],
-        "avg": agg["avg"],
-        "byKind": _bucket(db, "kind", "kind_id"),
-        "byStatus": _bucket(db, "status", "status_id"),
-        "byType": _bucket(db, "type", "type_id"),
-        "byPub": _bucket(db, "pub", "pub_id"),
-        "ratings": ratings,
-        "byTag": _tag_bucket(db),
-    }
+        ratings = [{"score": int(x["b"]), "count": x["n"]} for x in db.execute("""
+            SELECT CAST(ROUND(rating) AS INTEGER) AS b, COUNT(*) AS n
+            FROM series WHERE rating IS NOT NULL AND kind_id = ?
+            GROUP BY b ORDER BY b""", (kid,))]
+
+        out[kind] = {
+            "total": agg["total"],
+            # Chapters read, or episodes watched. Films are not in it: they
+            # have no episodes and counting each as one would put a number in
+            # the tally that means something else.
+            "units": agg["units"],
+            "unit": r["unit"],
+            # Films watched, which is the number Watching actually wants.
+            "done": agg["done"],
+            "rated": agg["rated"],
+            "avg": agg["avg"],
+            "byStatus": _bucket(db, "status", "status_id", kid),
+            "byType": _bucket(db, "type", "type_id", kid),
+            "byPub": _bucket(db, "pub", "pub_id", kid),
+            "ratings": ratings,
+            "bySetting": _word_bucket(db, "setting", kid),
+            "byGenre": _word_bucket(db, "genre", kid),
+        }
+    return out
 
 
 def history(db, limit=40):
@@ -384,14 +349,24 @@ def history(db, limit=40):
 
 
 def payload(db):
+    """One round trip for the whole app.
+
+    Every series, both trackers, in one array — 945 rows is a 200 KB response
+    the browser filters in a millisecond, and paying for it once beats a fetch
+    every time he walks through a different door."""
     return {"series": all_series(db), "stats": stats(db),
-            "meta": vocab(db), "tags": tag_report(db), "history": history(db)}
+            "meta": vocab(db), "history": history(db)}
 
 
 # ------------------------------------------------------------------ writing
 
-FIELDS = {"title", "chapter", "rating", "kind", "status", "pub", "type",
-          "cover", "notes", "tags"}
+FIELDS = {"title", "chapter", "tome", "rating", "kind", "status", "pub",
+          "type", "cover", "setting", "genre"}
+
+# The two word fields and the table column each is stored under. Both are
+# many-to-many rows in `series_tag`, so writing one has to leave the other
+# alone — replacing "the tags" wholesale is what a single list would have done.
+AXES = ("setting", "genre")
 
 
 def _num(v):
@@ -414,7 +389,7 @@ def update_series(db, sid, fields):
     before = one_series(db, sid)
     sets, args, changed = [], [], []
 
-    for field in ("title", "cover", "notes"):
+    for field in ("title", "cover"):
         if field in fields:
             new = str(fields[field] or "").strip()
             if field == "title" and not new:
@@ -424,7 +399,7 @@ def update_series(db, sid, fields):
                 args.append(new)
                 changed.append(field)
 
-    for field in ("chapter", "rating"):
+    for field in ("chapter", "tome", "rating"):
         if field in fields:
             new = _num(fields[field])
             if new is not None and field == "rating" and not (0 <= new <= 10):
@@ -447,15 +422,26 @@ def update_series(db, sid, fields):
         db.execute(f"UPDATE series SET {', '.join(sets)}, "
                    f"updated_at = datetime('now') WHERE id = ?", args + [sid])
 
-    if "tags" in fields:
-        want = {t.strip() for t in (fields["tags"] or []) if str(t).strip()}
-        if want != set(before["tags"]):
-            db.execute("DELETE FROM series_tag WHERE series_id = ?", (sid,))
-            for t in want:
-                db.execute(
-                    "INSERT OR IGNORE INTO series_tag(series_id, tag_id) VALUES (?,?)",
-                    (sid, S.tag_id(db, t)))
-            changed.append("tags")
+    # Each axis is replaced on its own. The rows live in one join table, so
+    # clearing it to write Setting would take Genre with it.
+    for axis in AXES:
+        if axis not in fields:
+            continue
+        want = {str(w).strip() for w in (fields[axis] or []) if str(w).strip()}
+        if want == set(before[axis]):
+            continue
+        db.execute("""
+            DELETE FROM series_tag WHERE series_id = ? AND tag_id IN
+              (SELECT id FROM tag WHERE axis = ?)""", (sid, axis))
+        for w in want:
+            # Filed onto the axis it was picked from. The UI only offers words
+            # that are already in the vocabulary, so this inserts nothing new
+            # in practice — it is here so an API caller cannot leave one
+            # unfiled and invisible to both pickers.
+            db.execute(
+                "INSERT OR IGNORE INTO series_tag(series_id, tag_id) VALUES (?,?)",
+                (sid, S.tag_id(db, w, axis)))
+        changed.append(axis)
 
     if "chapter" in changed:
         db.execute(
@@ -480,9 +466,12 @@ def create_series(db, title, fields):
         raise ValueError("a series needs a title")
     if db.execute("SELECT 1 FROM series WHERE title = ?", (title,)).fetchone():
         raise FileExistsError(title)
+    # The tracker he is standing in, which the client always sends because it
+    # cannot be anywhere else. Reading is the fallback for a bare API call.
+    kind = str((fields or {}).get("kind") or "").strip() or "Reading"
     sid = db.execute(
         "INSERT INTO series(title, kind_id) VALUES (?, "
-        "(SELECT id FROM kind WHERE name = 'Reading'))", (title,)).lastrowid
+        "(SELECT id FROM kind WHERE name = ?))", (title, kind)).lastrowid
     update_series(db, sid, {k: v for k, v in (fields or {}).items() if k in FIELDS})
     S.reindex(db, sid)
     db.commit()
@@ -977,10 +966,6 @@ class Handler(BaseHTTPRequestHandler):
                 title = delete_series(db, int(b["id"]))
                 return self._send({"ok": True, "title": title, **payload(db)})
 
-            if u.path == "/api/tags/merge":
-                n, _ = merge_tags(db, b.get("from") or [], int(b["to"]))
-                return self._send({"ok": True, "series_touched": n, **payload(db)})
-
             return self.send_error(404, "no such endpoint")
         except FileExistsError as e:
             return self._send({"error": f"“{e}” is already on the shelf"}, 409)
@@ -997,26 +982,28 @@ class Handler(BaseHTTPRequestHandler):
 # -------------------------------------------------------------------- entry
 
 def print_stats():
+    """`app.py --stats`, one block per tracker — the same split the app has."""
     db = connect()
-    st = stats(db)
-    print(f"\n{DB}\n{st['total']} series · {st['chapters']:,} chapters · "
-          f"mean rating {st['avg']}\n")
-    for row in st["byStatus"]:
-        bar = "█" * round(40 * row["count"] / max(1, st["total"]))
-        print(f"  {row['name']:<10} {row['count']:>4}  {bar}")
-    print()
-    for row in st["byType"]:
-        print(f"  {row['name']:<18} {row['count']:>4}")
-    for group in st["byTag"]:
-        top = ", ".join(f"{r['name']} {r['count']}" for r in group["rows"][:6])
-        print(f"\n  {group['axis']:<8} {top}")
-    print()
-    var = tag_report(db)["variants"]
-    if var:
-        print(f"\n{len(var)} tags spelled more than one way:")
-        for v in var:
-            print("  " + " / ".join(f"{s['tag']}({s['count']})"
-                                    for s in v["spellings"]))
+    print(f"\n{DB}")
+    for kind, st in stats(db).items():
+        if not st["total"]:
+            continue
+        tally = f"{st['units']:,} {st['unit']}" if st["units"] else ""
+        if st["done"]:
+            tally = ", ".join(filter(None, (tally, f"{st['done']} watched")))
+        print(f"\n── {kind} ──\n{st['total']} series"
+              + (f" · {tally}" if tally else "")
+              + f" · mean rating {st['avg']}\n")
+        for row in st["byStatus"]:
+            bar = "█" * round(40 * row["count"] / max(1, st["total"]))
+            print(f"  {row['name']:<10} {row['count']:>4}  {bar}")
+        print()
+        for row in st["byType"]:
+            print(f"  {row['name']:<18} {row['count']:>4}")
+        for axis, rows in (("setting", st["bySetting"]), ("genre", st["byGenre"])):
+            top = ", ".join(f"{r['name']} {r['count']}" for r in rows[:6])
+            if top:
+                print(f"\n  {axis:<8} {top}")
     print()
     db.close()
 
