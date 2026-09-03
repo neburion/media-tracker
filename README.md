@@ -90,6 +90,27 @@ a seeded title is adopted rather than duplicated.
 The vocabularies are the one thing upserted every start, so fixing an ordering
 or adding a status is an edit and a redeploy.
 
+### The view and the index look after themselves
+
+`CREATE VIEW IF NOT EXISTS` has no opinion about a view that already exists and
+is wrong. So every time `schema.sql` grew a column, the *live* view kept its old
+shape and the app started answering `No item with that key` out of
+`row_to_series()` — which is what adding `season` did, and what adding `kind`
+did before it, each patched afterwards by a one-off `once()` that existed only
+because somebody remembered to write it.
+
+Nobody has to remember now. `migrate()` ends by dropping `v_series`
+unconditionally: a view is metadata, dropping it costs nothing, and the second
+`executescript(schema)` in `main()` puts it straight back from the file that is
+the authority on its shape. It goes *last* because the repairs above it call
+`reindex()`, which reads the view.
+
+The FTS index cannot be treated the same way — rebuilding it is 900-odd
+`reindex()` calls — so it is checked rather than dropped. Its columns cannot be
+altered in place either, so a mismatch between what it has and what `reindex()`
+writes is a rebuild, and the heal loop at the end of `main()` refills it,
+because after the drop no row is in it.
+
 ## What the database buys
 
 The vault could only ever describe the present: one note per series, each

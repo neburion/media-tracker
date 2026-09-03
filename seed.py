@@ -467,6 +467,31 @@ def migrate(db):
         if n:
             print(f"  migrate: {n} show(s) filed under season 1")
 
+    # ── keep the view and the index honest ──────────────────────────────
+    #
+    # Last, and unconditional. `CREATE VIEW IF NOT EXISTS` has no opinion about
+    # a view that already exists and is wrong, so every time schema.sql grew a
+    # column the live view kept its old shape and the app started returning
+    # `No item with that key` from row_to_series — which is what adding
+    # `season` did, and what adding `kind` did before it, each fixed by a
+    # one-off `once()` that only existed because somebody remembered.
+    #
+    # Nobody has to remember now. A view is metadata: dropping it costs
+    # nothing, and the second executescript in main() puts it straight back
+    # from the file that is the authority on its shape. It goes at the *end* of
+    # migrate() because the repairs above call reindex(), which reads it.
+    db.execute("DROP VIEW IF EXISTS v_series")
+
+    # The index cannot be treated the same way — rebuilding it means 900-odd
+    # reindex() calls — so it is checked instead of dropped. Its columns cannot
+    # be altered in place either, so a mismatch is a rebuild, and the heal loop
+    # at the end of main() refills it because no row is in it any more.
+    want = ("title", "tags", "type")
+    have = tuple(r["name"] for r in db.execute("PRAGMA table_info(series_fts)"))
+    if have and have != want:
+        db.execute("DROP TABLE series_fts")
+        print(f"  migrate: search index columns changed {have} → {want}, rebuilding")
+
 
 def apply_tags(db, plan):
     """Re-tag the shelf from tags.json, once.
