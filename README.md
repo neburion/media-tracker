@@ -526,22 +526,59 @@ stays with the person who has the taste.
 
 DuckDuckGo, which needs no API key and is where the vault's cover URLs came
 from originally. Two requests: the HTML page carries a `vqd` token the JSON
-endpoint requires. Results are filtered to things that could plausibly be
-cover art — at least 200×280, aspect between 0.5 and 0.95 — and sorted by how
-close they are to 2:3 before how large they are, because the shelf draws every
-plate at 2:3 and a wide screenshot is worse than a small poster no matter how
-many pixels it has. Each tile is drawn in that same 2:3, so what you pick is
-what you get.
+endpoint requires.
+
+### It ranks, it does not filter
+
+The first version threw results away: under 200×280, or an aspect ratio outside
+0.5–0.95, and it was gone. That is why the picker kept missing covers you could
+find by typing the same title into DuckDuckGo yourself — **a bare title search
+returned 96 results and showed you 19.** Every square thumbnail went, and a
+square thumbnail is very often the right cover, cropped by whatever site was
+displaying it.
+
+Nothing is discarded now except images too small to be artwork at all — under
+120px on their shorter side, which is an icon or a sprite. Everything else is
+*sorted* into bands by shape, biggest first inside each:
+
+| band | ratio | what it usually is |
+|---|---|---|
+| 0 | 0.60–0.75 | cover proportions |
+| 1 | 0.45–0.60 | taller than a cover, still a poster |
+| 2 | 0.75–1.05 | square, or nearly: a crop of the right art |
+| 3 | under 0.45 | a strip |
+| 4 | over 1.05 | landscape: a screenshot or a banner |
+
+The old sort was the raw distance from 2:3, which put a 200px thumbnail that
+happened to be exactly 0.667 above a 2000px cover that was 0.66. Banding fixes
+that: cover-shaped and large comes first, and the wide ones sink rather than
+disappear. Measured over six titles from the shelf, what you are shown went from
+16–32 results to 72–97, with a full-size cover top-left in every case.
+
+### Two smaller bugs found with it
+
+**Paging skipped results.** The offset was `page * 100`, assumed rather than
+read, and DuckDuckGo returns 95 or 97 or 80. It comes out of the response's own
+`next` field now, and the grid de-duplicates by URL, because paging genuinely
+repeats — 20 to 35 of each later page are images you have already been shown.
+**More** hides itself when there is no next page.
+
+**The thumbnail proxy rejected a shard.** `/thumb` is locked by pattern to
+DuckDuckGo's CDN so it cannot be used as a relay, and the pattern required
+`.mm.` after an optional `.explicit.` — matching `tse2.explicit.mm.bing.net`,
+a host DuckDuckGo does not use. The one it does use is
+`tse2.explicit.bing.net`, so those thumbnails 404'd and the grid's `onerror`
+handler silently deleted the tile. Both parts are independent now; the
+allowlist is still one domain family, verified against another host and against
+a loopback URL.
 
 Picking fills the field; **Save** commits it, like every other field in the
 sheet. From there the normal cache takes over and the image is kept forever.
 
-`/thumb` proxies the thumbnails rather than letting the browser load them.
-Two reasons: the tailnet reaches this over plain HTTP and a browser blocks
+`/thumb` proxies the thumbnails rather than letting the browser load them for
+two reasons: the tailnet reaches this over plain HTTP and a browser blocks
 https images on an http page, and it keeps the picker from telling a third
-party what is being searched for from which address. It is locked by pattern
-to DuckDuckGo's thumbnail CDN, so it cannot be used as a relay — verified
-against another host, and against a loopback URL.
+party what is being searched for from which address.
 
 ## Cover artwork
 

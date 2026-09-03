@@ -525,7 +525,14 @@ DDG_UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko
 # DuckDuckGo serves its image thumbnails off Bing's CDN, so the proxy allows
 # that family and nothing else. A pattern rather than a list because the shard
 # number varies per result; it is still one domain, not an open relay.
-THUMB_HOST = re.compile(r"^tse\d+(\.explicit)?\.mm\.bing\.net$|"
+#
+# Both `.mm.` and `.explicit.` are optional and independent. The first version
+# of this required `.mm.` after an optional `.explicit.`, which matches
+# `tse2.explicit.mm.bing.net` — a host DuckDuckGo does not use. The one it does
+# use is `tse2.explicit.bing.net`, so those thumbnails 404'd, and the grid's
+# onerror handler quietly deleted the tile. A few results vanished from every
+# search and nothing said so.
+THUMB_HOST = re.compile(r"^tse\d+(\.explicit)?(\.mm)?\.bing\.net$|"
                         r"^external-content\.duckduckgo\.com$")
 _vqd_cache = {}
 
@@ -552,44 +559,72 @@ def _vqd(query):
     return m.group(1)
 
 
-def image_search(query, page=0):
-    """[{url, thumb, w, h, host}] — biggest and most portrait first.
+# How close a result's proportions are to something that will sit in a 2:3
+# plate. This is a *sort key*, not a filter, and that distinction is the whole
+# point: the picker used to throw away anything outside 0.5–0.95, which on a
+# bare title search deleted three quarters of what DuckDuckGo found — every
+# square thumbnail, and every cover a listing site had padded. The grid draws
+# them all; the ones that will look right are simply at the top.
+def _shape(w, h):
+    r = w / h
+    if 0.60 <= r <= 0.75:
+        return 0      # cover proportions
+    if 0.45 <= r < 0.60:
+        return 1      # taller than a cover, still a poster
+    if 0.75 < r <= 1.05:
+        return 2      # square, or nearly — usually a crop of the right art
+    if r < 0.45:
+        return 3      # a strip
+    return 4          # landscape: a screenshot or a banner
 
-    The shelf draws every plate at 2:3, so a wide screenshot is worse than a
-    small poster no matter how many pixels it has. Ranking on shape before
-    size puts the ones that will actually look right at the top.
+
+def image_search(query, offset=0):
+    """{results: [{url, thumb, w, h, host}], next: offset} — cover-shaped first.
+
+    `next` comes out of DuckDuckGo's own response rather than being assumed to
+    be a hundred more than the last one. It returned 95 results for a page the
+    caller had been told was 100 wide, so every page turn skipped a handful.
     """
     query = (query or "").strip()
     if not query:
-        return []
+        return {"results": [], "next": None}
     vqd = _vqd(query)
     if not vqd:
-        return []
+        return {"results": [], "next": None}
     raw = _ddg("https://duckduckgo.com/i.js?" + urlencode(
         {"l": "us-en", "o": "json", "q": query, "vqd": vqd,
-         "f": ",,,", "p": "1", "s": str(page * 100)}),
+         "f": ",,,", "p": "1", "s": str(int(offset or 0))}),
         referer="https://duckduckgo.com/")
     try:
-        results = json.loads(raw).get("results") or []
+        body = json.loads(raw)
     except ValueError:
-        return []
-    out = []
-    for r in results:
+        return {"results": [], "next": None}
+
+    out, seen = [], set()
+    for r in body.get("results") or []:
         w, h = int(r.get("width") or 0), int(r.get("height") or 0)
-        if not (w and h) or w < 200 or h < 280:
-            continue          # too small to be cover art
-        ratio = w / h
-        if not (0.5 <= ratio <= 0.95):
-            continue          # landscape, or a square icon
+        url = r.get("image") or ""
+        # The only thing rejected outright is something too small to be
+        # artwork at all — an icon, a sprite, a tracking pixel.
+        if not (w and h) or min(w, h) < 120 or not url or url in seen:
+            continue
+        seen.add(url)
         out.append({
-            "url": r.get("image"),
+            "url": url,
             "thumb": r.get("thumbnail"),
             "w": w, "h": h,
-            "host": urlparse(r.get("image") or "").netloc,
+            "host": urlparse(url).netloc,
         })
-    # closest to 2:3 first, then largest
-    out.sort(key=lambda i: (abs(i["w"] / i["h"] - 2 / 3), -i["w"] * i["h"]))
-    return out[:60]
+    # Cover-shaped before square before wide, and biggest first inside each.
+    # Sorting on the raw distance from 2:3 instead put a 200px thumbnail that
+    # happened to be exactly 0.667 above a 2000px cover that was 0.66.
+    out.sort(key=lambda i: (_shape(i["w"], i["h"]), -i["w"] * i["h"]))
+
+    nxt = None
+    m = re.search(r"[?&]s=(\d+)", body.get("next") or "")
+    if m:
+        nxt = int(m.group(1))
+    return {"results": out, "next": nxt}
 
 
 def thumb_bytes(url):
@@ -916,8 +951,9 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/search":
                 return self._send({"results": search(db, (qs.get("q") or [""])[0])})
             if u.path == "/api/images":
-                return self._send({"results": image_search(
-                    (qs.get("q") or [""])[0], int((qs.get("p") or ["0"])[0]))})
+                return self._send(image_search(
+                    (qs.get("q") or [""])[0],
+                    int((qs.get("s") or ["0"])[0])))
             if u.path == "/api/history":
                 return self._send({"history": history(db, 200)})
             if u.path == "/api/export":

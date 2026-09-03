@@ -1196,7 +1196,10 @@ async function saveSheet(){
    for what kind of thing it is, because "Solo Leveling" alone returns anime
    stills and "Solo Leveling manhwa cover" returns covers. It stays editable;
    the seed is a starting point, not a rule. */
-const artState = { q:'', page:0, chosen:null };
+/* `next` is DuckDuckGo's own offset for the following page, handed back by
+   the API. `seen` is because paging can repeat a result and a duplicate in the
+   grid is a click that does nothing you can tell apart. */
+const artState = { q:'', next:0, chosen:null, seen:new Set() };
 
 function seedQuery(s){
   const kind = (s.type || '').toLowerCase().includes('novel') ? 'novel' : (s.type || '');
@@ -1204,20 +1207,28 @@ function seedQuery(s){
 }
 
 async function artSearch(reset){
-  const box = $('#art-shots'), note = $('#art-note');
-  if (reset){ artState.page = 0; box.innerHTML = ''; artState.chosen = null; }
+  const box = $('#art-shots'), note = $('#art-note'), more = $('#art-more');
+  if (reset){
+    artState.next = 0; artState.chosen = null;
+    artState.seen = new Set(); box.innerHTML = '';
+  }
   artState.q = $('#art-q').value.trim();
   if (!artState.q) return;
   note.textContent = 'Searching…';
   try {
-    const r = await api(`/api/images?q=${encodeURIComponent(artState.q)}&p=${artState.page}`);
-    const hits = r.results || [];
+    const r = await api(`/api/images?q=${encodeURIComponent(artState.q)}`
+                        + `&s=${artState.next || 0}`);
+    const hits = (r.results || []).filter(i => !artState.seen.has(i.url));
+    for (const i of hits) artState.seen.add(i.url);
     box.insertAdjacentHTML('beforeend', hits.map(i => `
       <button class="shot" data-pick="${esc(i.url)}" title="${esc(i.host)}">
         <img src="/thumb?u=${encodeURIComponent(i.thumb)}" alt="" loading="lazy"
              onerror="this.closest('.shot').remove()">
         <em>${i.w}×${i.h}</em>
       </button>`).join(''));
+    artState.next = r.next;
+    // No point offering another page when DuckDuckGo says there is not one.
+    more.hidden = !r.next;
     const n = box.children.length;
     note.textContent = n ? `${n} results, click one` : 'Nothing that looked like cover art.';
   } catch (e){ note.textContent = e.message; }
@@ -1282,7 +1293,7 @@ document.addEventListener('click', async ev => {
   if (ev.target.id === 'e-cover-find') return openArt();
   if (hit('[data-art-close]')) return closeArt();
   if (ev.target.id === 'art-go') return artSearch(true);
-  if (ev.target.id === 'art-more'){ artState.page++; return artSearch(false); }
+  if (ev.target.id === 'art-more') return artSearch(false);
 
   const shot = hit('[data-pick]');
   if (shot){
