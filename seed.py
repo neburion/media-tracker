@@ -266,6 +266,7 @@ def migrate(db):
     add_column(db, "tag", "axis", "TEXT")
     add_column(db, "series", "kind_id", "INTEGER REFERENCES kind(id)")
     add_column(db, "series", "tome", "REAL")
+    add_column(db, "series", "season", "REAL")
     add_column(db, "type", "kind_id", "INTEGER REFERENCES kind(id)")
     add_column(db, "type", "progress", "TEXT NOT NULL DEFAULT ''")
 
@@ -439,6 +440,32 @@ def migrate(db):
             # it gained tome, progress, and setting and genre as two columns.
             db.execute("DROP VIEW IF EXISTS v_series")
             db.execute("DROP TABLE IF EXISTS series_fts")
+
+
+    # A Show or an Anime always has a season, so the ones that predate the
+    # column get the only answer that is nearly always right. It is a number in
+    # a field he can edit, not a claim — which is the difference between a
+    # default and a guess written somewhere he cannot see it.
+    #
+    # Matched on the type's *name*, not on `type.progress`. This runs before
+    # upsert_vocab, so on a database that has only just been given the progress
+    # column every row still reads '' — and keying off that filed a film under
+    # season 1. TYPES above is the authority on which types count, and it does
+    # not depend on what order anything ran in.
+    if once(db, "season-backfill"):
+        counted = [name for name, mode in TYPES["Watching"] if mode == ""]
+        films   = [name for name, mode in TYPES["Watching"] if mode == "once"]
+        marks = lambda names: ",".join("?" * len(names))
+        n = db.execute(f"""
+            UPDATE series SET season = 1 WHERE season IS NULL AND type_id IN
+              (SELECT id FROM type WHERE name IN ({marks(counted)}))""",
+            counted).rowcount
+        # And a film has no season at all, however it came by one.
+        db.execute(f"""
+            UPDATE series SET season = NULL WHERE season IS NOT NULL AND type_id IN
+              (SELECT id FROM type WHERE name IN ({marks(films)}))""", films)
+        if n:
+            print(f"  migrate: {n} show(s) filed under season 1")
 
 
 def apply_tags(db, plan):

@@ -112,8 +112,8 @@ than a rewrite of eleven files.
 
 | tracker | progress counts | types |
 |---|---|---|
-| Reading | `ch`, and an optional `tome` | Manhwa, Manhua, Manga, Web Novel, Indonesian Comic |
-| Watching | `ep`, or nothing at all | Show, Anime, Movie, Animated Movie |
+| Reading | a chapter, and an optional tome | Manhwa, Manhua, Manga, Web Novel, Indonesian Comic |
+| Watching | a season and an episode, or nothing at all | Show, Anime, Movie, Animated Movie |
 
 `kind` is no longer a filter and never appears as a menu. It used to be a strip
 of chips above the shelves with an **All** in front of them, which meant every
@@ -160,14 +160,35 @@ the date you saw it. Change a Movie to a Show in the sheet and the control
 redraws into a counter without a save, because the type you are picking is the
 thing that decides which control it should be.
 
-### Tomes
+### Tomes, and seasons
 
-`series.tome`, nullable, Reading only, and optional in the real sense: null
-means you are not counting volumes, which is most of the shelf. It shows on the
-card as `T 12` beside the chapter when it is set and not at all when it is not.
+Two columns above `chapter`, and two rather than one because they answer
+different questions.
 
-Deliberately **not** logged. `reading_log` is about chapters, and a second unit
-in it would make *what have I been reading* a question with two answers.
+`series.tome` is Reading-only and optional in the real sense: null means you are
+not counting volumes, which is most of the shelf. It shows on the card as
+`T 12` beside the chapter when it is set and not at all when it is not.
+
+`series.season` is the opposite. A season is part of an episode's *address* —
+"episode 12" of a show with four seasons does not identify anything — so a Show
+or an Anime always has one, it defaults to 1, and the card reads `S 2 EP 10`.
+A show you have not started still reads `S 1` rather than UNSTARTED, because
+which season you are on is a fact before the first episode is. Films have no
+season and are not given one.
+
+Collapsing the two into one "the bigger number" column would have been cheaper
+by a column and wrong for the same reason `status` and `pub` are two fields: a
+volume is a way of buying a book and a season is a coordinate.
+
+Neither is logged. `reading_log` is about chapters and episodes, and a second
+unit in it would make *what have I been watching* a question with two answers.
+The `+` on a card advances the episode; the season is changed in the sheet,
+where changing it is a deliberate thing rather than a mis-tap.
+
+The backfill for the shows that predate the column matches on the type's
+**name**, not on `type.progress`. `migrate()` runs before `upsert_vocab()`, so
+on a database that has only just been given the `progress` column every row
+still reads `''` — keying off that filed a film under season 1.
 
 ### Nine broadcast formats became four words
 

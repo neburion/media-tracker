@@ -90,11 +90,18 @@ CREATE TABLE IF NOT EXISTS series (
   -- means is carried by kind.unit and type.progress, which is the part the
   -- reader sees.
   chapter    REAL,
-  -- Volumes, and optional in the real sense: null means you are not counting
-  -- them, which is most of the shelf. Deliberately not logged — reading_log is
-  -- about chapters, and a second unit in it would make "what have I been
-  -- reading" a question with two answers.
+  -- The coarser unit above `chapter`, and there are two of them because they
+  -- are two questions. A volume is a way of buying a book and you either count
+  -- them or you do not; a season is part of the address of an episode, and
+  -- "episode 12" of a show that has four seasons does not identify anything.
+  -- So `tome` is optional and blank on most of the shelf, and `season` is
+  -- always shown on a Show or an Anime and defaults to 1.
+  --
+  -- Neither is logged. reading_log is about chapters and episodes; a second
+  -- unit in it would make "what have I been watching" a question with two
+  -- answers.
   tome       REAL,
+  season     REAL,
   -- 0-10. This once admitted -10, to hold a single series rated in anger; that
   -- was a verdict rather than a score, and it has been set to 0. Databases
   -- created before that keep the wider CHECK — rebuilding a table to tighten a
@@ -216,7 +223,7 @@ CREATE TABLE IF NOT EXISTS migration (
 
 CREATE VIEW IF NOT EXISTS v_series AS
 SELECT
-  s.id, s.title, s.chapter, s.tome, s.rating, s.cover,
+  s.id, s.title, s.chapter, s.tome, s.season, s.rating, s.cover,
   s.created_at, s.updated_at,
   COALESCE(kn.name, '') AS kind,
   COALESCE(ty.progress, '') AS progress,

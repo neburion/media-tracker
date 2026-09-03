@@ -917,12 +917,17 @@ function card(s){
   // A film has two states and no number. Everything else has a count, and a
   // volume beside it when he is keeping one.
   const once = s.progress === 'once';
+  // A season without an episode is still where you are, so a show that has not
+  // been started reads S 1 rather than UNSTARTED.
+  const season = s.kind === 'Watching' ? `<b>S</b> ${esc(fmt(s.season ?? 1))}` : '';
   const mark = once
     ? `<b>${s.chapter ? 'WATCHED' : 'UNWATCHED'}</b>`
     : s.chapter !== null
-      ? `${s.unit ? `<b>${esc(s.unit.toUpperCase())}</b> ` : ''}${esc(fmt(s.chapter))}` +
-        (s.tome !== null ? ` <b>T</b> ${esc(fmt(s.tome))}` : '')
-      : `<b>UNSTARTED</b>`;
+      ? [season,
+         `${s.unit ? `<b>${esc(s.unit.toUpperCase())}</b> ` : ''}${esc(fmt(s.chapter))}` +
+           (s.tome !== null ? ` <b>T</b> ${esc(fmt(s.tome))}` : '')
+        ].filter(Boolean).join(' ')
+      : (season || `<b>UNSTARTED</b>`);
   const plus = once && s.chapter ? '' : `
         <button class="plus" data-bump="${s.id}" title="One more ${esc(bumpWord(s))}"
           aria-label="One more ${esc(bumpWord(s))} of ${esc(s.title)}">${once ? '✓' : '+'}</button>`;
@@ -993,36 +998,45 @@ function renderStats(st){
 
 /* ══ the sheet ════════════════════════════════════════════════════════ */
 
-/* The progress control is not one control. A show has episodes and a film has
-   an evening, so which of the two you get is a property of the type — and the
-   type is editable in this same sheet, which is why this is a function that
-   can be called again rather than a branch taken once on open. */
+/* The progress control is not one control. A show has a season and an episode,
+   a manhwa has a chapter and maybe a volume, and a film has an evening — so
+   which of the three you get is a property of the type, and the type is
+   editable in this same sheet. Hence a function that can be called again
+   rather than a branch taken once on open.
+
+   `stepper` is the shape all of them share: a labelled number with a button on
+   each side, and a data attribute naming the field it writes. */
+function stepper(field, label, value, placeholder){
+  return `
+      <div class="field" style="margin:0 0 12px">
+        <span class="lbl">${esc(label)}</span>
+        <div class="stepper">
+          <button data-bumpfield="${field}" data-by="-1"
+                  aria-label="Back one ${esc(label.toLowerCase())}">−</button>
+          <input type="number" id="e-${field}" inputmode="numeric" min="0"
+                 value="${value === null ? '' : esc(fmt(value))}"
+                 placeholder="${esc(placeholder)}">
+          <button data-bumpfield="${field}" data-by="1"
+                  aria-label="On one ${esc(label.toLowerCase())}">+</button>
+        </div>
+      </div>`;
+}
+
 function progressField(s, type){
-  const once = modeOf(s.kind, type) === 'once';
-  if (once) return `
+  if (modeOf(s.kind, type) === 'once') return `
       <span class="lbl">Watched</span>
       <div class="switch">
         <button data-watched="0" aria-pressed="${!s.chapter}">Not yet</button>
         <button data-watched="1" aria-pressed="${!!s.chapter}">Watched</button>
       </div>`;
-  const word = PROGRESS_LABEL[s.kind] || 'Progress';
-  return `
-      <span class="lbl">${esc(word)}</span>
-      <div class="stepper">
-        <button data-step="-1" aria-label="Back one ${esc(word.toLowerCase())}">−</button>
-        <input type="number" id="e-chapter" inputmode="numeric" min="0"
-               value="${s.chapter === null ? '' : esc(fmt(s.chapter))}" placeholder="not started">
-        <button data-step="1" aria-label="On one ${esc(word.toLowerCase())}">+</button>
-      </div>` + (s.kind !== 'Reading' ? '' : `
-      <div class="field" style="margin:12px 0 0">
-        <span class="lbl">Tome</span>
-        <div class="stepper">
-          <button data-tome="-1" aria-label="Back one tome">−</button>
-          <input type="number" id="e-tome" inputmode="numeric" min="0"
-                 value="${s.tome === null ? '' : esc(fmt(s.tome))}" placeholder="not counting">
-          <button data-tome="1" aria-label="On one tome">+</button>
-        </div>
-      </div>`);
+  // A season is part of an episode's address: "episode 12" of a show with four
+  // of them does not identify anything. So it is always there and starts at 1,
+  // where a tome is a way of buying a book and stays blank until he counts one.
+  return s.kind === 'Watching'
+    ? stepper('season', 'Season', s.season ?? 1, '1') +
+      stepper('chapter', 'Episode', s.chapter, 'not started')
+    : stepper('chapter', 'Chapter', s.chapter, 'not started') +
+      stepper('tome', 'Tome', s.tome, 'not counting');
 }
 
 function drawProgress(type){
@@ -1032,9 +1046,12 @@ function drawProgress(type){
   // Read the fields back off the DOM first, so redrawing after a type change
   // does not throw away a number he just typed.
   const live = { ...s };
-  const ch = $('#e-chapter'), tm = $('#e-tome'), on = $('#e-progress [data-watched][aria-pressed=true]');
-  if (ch) live.chapter = ch.value.trim() === '' ? null : Number(ch.value);
-  if (tm) live.tome = tm.value.trim() === '' ? null : Number(tm.value);
+  const num = el => !el || el.value.trim() === '' ? null : Number(el.value);
+  for (const f of ['chapter', 'tome', 'season']){
+    const el = $('#e-' + f);
+    if (el) live[f] = num(el);
+  }
+  const on = $('#e-progress [data-watched][aria-pressed=true]');
   if (on) live.chapter = on.dataset.watched === '1' ? (s.chapter || 1) : null;
   box.innerHTML = progressField(live, type);
 }
@@ -1061,7 +1078,7 @@ function openSheet(id){
       <button class="ico" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="sheet-body">
-      <div class="field" id="e-progress">${progressField(s, s.type)}</div>
+      <div id="e-progress">${progressField(s, s.type)}</div>
 
       <div class="field">
         <span class="lbl">Rating</span>
@@ -1152,6 +1169,7 @@ async function saveSheet(){
     chapter: watched ? (watched.dataset.watched === '1' ? 1 : null)
                      : num($('#e-chapter')),
     tome:    num($('#e-tome')),
+    season:  num($('#e-season')),
     rating:  $('#e-rating-out').textContent === 'None' ? null : Number($('#e-rating').value),
     status:  $('#sheet [data-status][aria-pressed=true]')?.dataset.status || '',
     pub:     $('#sheet [data-pub][aria-pressed=true]')?.dataset.pub || '',
@@ -1160,9 +1178,10 @@ async function saveSheet(){
     genre:   pressed('#e-genre'),
     cover:   $('#e-cover').value.trim(),
   };
-  // Watching has no tome field at all, so sending null would clear a number
-  // that is not on screen to be changed.
-  if (S.kind !== 'Reading') delete fields.tome;
+  // Neither field exists in the other tracker, and a film has neither. Sending
+  // null for one that is not on screen would clear a number he was never shown.
+  if (!$('#e-tome')) delete fields.tome;
+  if (!$('#e-season')) delete fields.season;
   try {
     const r = await api('/api/update', { id, fields });
     closeSheet();
@@ -1231,7 +1250,9 @@ async function bump(id){
     const moved = now.status !== before.status;
     // "chapter 1" on a film is the sentence that made this whole field wrong.
     const said = once ? 'watched'
-      : `${(PROGRESS_LABEL[now.kind] || 'progress').toLowerCase()} ${fmt(now.chapter)}`;
+      : now.kind === 'Watching'
+        ? `season ${fmt(now.season ?? 1)}, episode ${fmt(now.chapter)}`
+        : `${(PROGRESS_LABEL[now.kind] || 'progress').toLowerCase()} ${fmt(now.chapter)}`;
     toast(`${now.title}: ${said}${moved ? ` · moved to ${now.status}` : ''}`,
       { label:'Undo', run: async () => {
           try { await api('/api/update', { id: s.id, fields: before }); await load();
@@ -1298,17 +1319,10 @@ document.addEventListener('click', async ev => {
     return;
   }
 
-  const step = hit('[data-step]');
+  const step = hit('[data-bumpfield]');
   if (step){
-    const el = $('#e-chapter');
-    el.value = Math.max(0, (Number(el.value) || 0) + Number(step.dataset.step));
-    return;
-  }
-
-  const tome = hit('[data-tome]');
-  if (tome){
-    const el = $('#e-tome');
-    el.value = Math.max(0, (Number(el.value) || 0) + Number(tome.dataset.tome));
+    const el = $('#e-' + step.dataset.bumpfield);
+    el.value = Math.max(0, (Number(el.value) || 0) + Number(step.dataset.by));
     return;
   }
 

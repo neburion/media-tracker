@@ -179,6 +179,9 @@ def row_to_series(r):
         "chapter": r["chapter"],
         # Volumes, when he is keeping them. Null on most of the shelf.
         "tome": r["tome"],
+        # Which season the episode above belongs to. Always set on a Show or
+        # an Anime; meaningless, and null, on everything else.
+        "season": r["season"],
         "rating": r["rating"],
         "status": r["status"],
         "pub": r["pub"],
@@ -360,8 +363,8 @@ def payload(db):
 
 # ------------------------------------------------------------------ writing
 
-FIELDS = {"title", "chapter", "tome", "rating", "kind", "status", "pub",
-          "type", "cover", "setting", "genre"}
+FIELDS = {"title", "chapter", "tome", "season", "rating", "kind", "status",
+          "pub", "type", "cover", "setting", "genre"}
 
 # The two word fields and the table column each is stored under. Both are
 # many-to-many rows in `series_tag`, so writing one has to leave the other
@@ -399,7 +402,7 @@ def update_series(db, sid, fields):
                 args.append(new)
                 changed.append(field)
 
-    for field in ("chapter", "tome", "rating"):
+    for field in ("chapter", "tome", "season", "rating"):
         if field in fields:
             new = _num(fields[field])
             if new is not None and field == "rating" and not (0 <= new <= 10):
@@ -469,9 +472,13 @@ def create_series(db, title, fields):
     # The tracker he is standing in, which the client always sends because it
     # cannot be anywhere else. Reading is the fallback for a bare API call.
     kind = str((fields or {}).get("kind") or "").strip() or "Reading"
+    # A show is in some season from the moment it is on the shelf, and that
+    # season is 1 until told otherwise. Set here rather than left to the sheet,
+    # so a title added and never opened still has one.
     sid = db.execute(
-        "INSERT INTO series(title, kind_id) VALUES (?, "
-        "(SELECT id FROM kind WHERE name = ?))", (title, kind)).lastrowid
+        "INSERT INTO series(title, kind_id, season) VALUES (?, "
+        "(SELECT id FROM kind WHERE name = ?), ?)",
+        (title, kind, 1 if kind == "Watching" else None)).lastrowid
     update_series(db, sid, {k: v for k, v in (fields or {}).items() if k in FIELDS})
     S.reindex(db, sid)
     db.commit()
