@@ -193,9 +193,17 @@ not counting volumes, which is most of the shelf. It shows on the card as
 `series.season` is the opposite. A season is part of an episode's *address* —
 "episode 12" of a show with four seasons does not identify anything — so a Show
 or an Anime always has one, it defaults to 1, and the card reads `S 2 EP 10`.
-A show you have not started still reads `S 1` rather than UNSTARTED, because
-which season you are on is a fact before the first episode is. Films have no
-season and are not given one.
+Films have no season and are not given one.
+
+It is printed only *beside an episode*. A show with nothing watched reads
+`UNWATCHED`, same as a film: on that card the season is the default talking,
+and printing it there covered up the one thing the card had to say.
+
+Getting back to `UNWATCHED` is the `−` button. It goes below 1 to **nothing**,
+not to zero — "episode 0" is a number you are on and there is no such episode,
+so flooring it at 0 meant a show could be started and never unstarted without
+reaching for the keyboard. The season floors at 1 instead, because it is never
+absent.
 
 Collapsing the two into one "the bigger number" column would have been cheaper
 by a column and wrong for the same reason `status` and `pub` are two fields: a

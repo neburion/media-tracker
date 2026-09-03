@@ -917,17 +917,18 @@ function card(s){
   // A film has two states and no number. Everything else has a count, and a
   // volume beside it when he is keeping one.
   const once = s.progress === 'once';
-  // A season without an episode is still where you are, so a show that has not
-  // been started reads S 1 rather than UNSTARTED.
-  const season = s.kind === 'Watching' ? `<b>S</b> ${esc(fmt(s.season ?? 1))}` : '';
-  const mark = once
-    ? `<b>${s.chapter ? 'WATCHED' : 'UNWATCHED'}</b>`
-    : s.chapter !== null
-      ? [season,
-         `${s.unit ? `<b>${esc(s.unit.toUpperCase())}</b> ` : ''}${esc(fmt(s.chapter))}` +
-           (s.tome !== null ? ` <b>T</b> ${esc(fmt(s.tome))}` : '')
-        ].filter(Boolean).join(' ')
-      : (season || `<b>UNSTARTED</b>`);
+  const watching = s.kind === 'Watching';
+  // A season is only worth printing next to an episode. On a show with no
+  // episodes watched it is the default talking, and printing it there is what
+  // covered up UNWATCHED — the one thing the card had to say about that show.
+  const season = watching && s.chapter !== null
+    ? `<b>S</b> ${esc(fmt(s.season ?? 1))}` : '';
+  const mark = once || s.chapter === null
+    ? `<b>${s.chapter ? 'WATCHED' : watching ? 'UNWATCHED' : 'UNSTARTED'}</b>`
+    : [season,
+       `${s.unit ? `<b>${esc(s.unit.toUpperCase())}</b> ` : ''}${esc(fmt(s.chapter))}` +
+         (s.tome !== null ? ` <b>T</b> ${esc(fmt(s.tome))}` : '')
+      ].filter(Boolean).join(' ');
   const plus = once && s.chapter ? '' : `
         <button class="plus" data-bump="${s.id}" title="One more ${esc(bumpWord(s))}"
           aria-label="One more ${esc(bumpWord(s))} of ${esc(s.title)}">${once ? '✓' : '+'}</button>`;
@@ -1034,7 +1035,7 @@ function progressField(s, type){
   // where a tome is a way of buying a book and stays blank until he counts one.
   return s.kind === 'Watching'
     ? stepper('season', 'Season', s.season ?? 1, '1') +
-      stepper('chapter', 'Episode', s.chapter, 'not started')
+      stepper('chapter', 'Episode', s.chapter, 'not watched')
     : stepper('chapter', 'Chapter', s.chapter, 'not started') +
       stepper('tome', 'Tome', s.tome, 'not counting');
 }
@@ -1321,8 +1322,14 @@ document.addEventListener('click', async ev => {
 
   const step = hit('[data-bumpfield]');
   if (step){
-    const el = $('#e-' + step.dataset.bumpfield);
-    el.value = Math.max(0, (Number(el.value) || 0) + Number(step.dataset.by));
+    const field = step.dataset.bumpfield;
+    const el = $('#e-' + field);
+    const next = (Number(el.value) || 0) + Number(step.dataset.by);
+    // A season is never absent, so it floors at 1. The other two go below 1 to
+    // nothing at all, which is how a show is put back to unwatched without
+    // reaching for the keyboard. Flooring them at 0 was the bug: "episode 0"
+    // is a number you are on, and there is no such episode.
+    el.value = field === 'season' ? Math.max(1, next) : (next < 1 ? '' : next);
     return;
   }
 
