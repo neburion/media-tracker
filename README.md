@@ -514,19 +514,83 @@ edited since is his, and beats any lookup.
 
 ## Picking cover art
 
-`Find`, next to the artwork field in the edit sheet, opens a web image search
+`Find`, next to the artwork field in the edit sheet, opens a cover search
 seeded with the series title — Playnite's shape, and the same job: you look at
 a grid and click the one you want.
 
-It is a **web image search, not a metadata provider**, and that is the point.
-AniList and Anime-Planet serve the official volume art; the covers on this
-shelf come from scan sites because those are the ones in the tall format the
-grid is built around. No provider offers that. A search does, and the choice
-stays with the person who has the taste.
+It asks **six catalogues at once**, in parallel, and merges them into one grid.
 
-DuckDuckGo, which needs no API key and is where the vault's cover URLs came
-from originally. Two requests: the HTML page carries a `vqd` token the JSON
-endpoint requires.
+### Why it is six and not one
+
+It was one: a DuckDuckGo image search, which needs no API key and is where the
+vault's cover URLs came from originally. That source went away. Not gradually —
+`i.js` began answering `403 Forbidden` to this address and kept answering it on
+a fresh `vqd`, from both machines, an hour after the last request, on HTTP/1.1
+and HTTP/2 alike. The HTML page that carries the token still returns 200, so
+the picker got far enough to fail at the last step and put `HTTP Error 403:
+Forbidden` under the search box.
+
+Nothing here caused it and nothing here fixes it. DuckDuckGo's terms forbid
+automated use and they have spent the year enforcing it; the `ddgs` library has
+the same bug report filed against `images()` while `text()` keeps working.
+
+So the picker stopped depending on any single source:
+
+| source | how | notes |
+|---|---|---|
+| `anime-planet` | HTML, parsed | the biggest catalogue of the niche and the new, which is most of this shelf |
+| `mangaupdates` | API | the breadth backstop — 25 hits where MangaDex and AniList each found 1 |
+| `mangadex` | API | clean and mainstream, thin on the obscure |
+| `anilist` | GraphQL | the highest-resolution art of the six |
+| `kitsu` | JSON:API | covers both trackers |
+| `duckduckgo` | `i.js` | last, and the only one that returns scan-site plates rather than official art |
+
+Ordered as listed, and the order is the grid's order.
+
+**A source that fails is skipped, not fatal.** That is the entire point of the
+rewrite: with the fan-out, today's DuckDuckGo 403 produces five working
+catalogues and a quiet note saying which one did not answer, instead of an
+error box and no covers. Anything a source raises — blocked, rate-limited,
+reshaped overnight — is caught per source.
+
+### Anime-Planet is the one that can break
+
+It is the only one of the six that is not an API. Cloudflare passes a plain
+request with a browser User-Agent; there is no challenge and no token. An exact
+title 302s to the series page, where the cover is the `og:image`; anything
+fuzzier returns the card grid, and both shapes are handled. Full-size art is
+the thumbnail URL with the `-190x273` taken back out — keeping the `?t=` stamp,
+without which the CDN 403s the resized forms.
+
+If they change their markup this stops working, silently, and no amount of care
+here prevents it. It is in the list anyway, because it is the catalogue this
+shelf was built out of.
+
+### The query is the title, and only the title
+
+The seed used to be the title plus a type word plus the literal word `cover`,
+which was correct when the only source was a web image search. It is wrong for
+five title-indexed catalogues: `One Coin Clear manhwa cover` matches nothing at
+all in a title index. It also dragged in every unrelated picture with the word
+*cover* on it, and most covers do not have "cover" in their filename anyway.
+
+The box stays editable, and every alternative title recorded for the series
+appears under it as a one-click query — see below.
+
+### Paging is per source
+
+Each source keeps its own place. The response carries the list of sources that
+still had more to give; the client hands that list back with the next page, so
+an exhausted catalogue is not asked again. When the list empties there is no
+next page and **More** puts itself away.
+
+That last part needed a bound. MangaUpdates matches on each word separately and
+then reports `total_hits: 10000`, which is a sentinel rather than a count —
+asked politely it will produce four hundred pages of things that share the word
+*coin* with the title. Believing it meant More could never hide, which is the
+one thing it was asked to do. No source is paged past four pages now: you are
+looking for one picture, and if it is not in the first hundred a catalogue
+offers, it is not in that catalogue.
 
 ### It ranks, it does not filter
 
@@ -550,35 +614,85 @@ Nothing is discarded now except images too small to be artwork at all — under
 | 4 | over 1.05 | landscape: a screenshot or a banner |
 
 The old sort was the raw distance from 2:3, which put a 200px thumbnail that
-happened to be exactly 0.667 above a 2000px cover that was 0.66. Banding fixes
-that: cover-shaped and large comes first, and the wide ones sink rather than
-disappear. Measured over six titles from the shelf, what you are shown went from
-16–32 results to 72–97, with a full-size cover top-left in every case.
+happened to be exactly 0.667 above a 2000px cover that was 0.66.
 
-### Two smaller bugs found with it
+This now orders DuckDuckGo's block and nothing else. The other five are
+catalogues of cover art, where every result is already the right shape and
+none of them says how big it is — so a tile is labelled with **which catalogue
+it came from** instead of with its dimensions, which is the more useful fact
+anyway. The size, when known, is in the tooltip along with the matched title.
+
+### Bugs found along the way
 
 **Paging skipped results.** The offset was `page * 100`, assumed rather than
 read, and DuckDuckGo returns 95 or 97 or 80. It comes out of the response's own
 `next` field now, and the grid de-duplicates by URL, because paging genuinely
-repeats — 20 to 35 of each later page are images you have already been shown.
-**More** hides itself when there is no next page.
+repeats.
 
-**The thumbnail proxy rejected a shard.** `/thumb` is locked by pattern to
-DuckDuckGo's CDN so it cannot be used as a relay, and the pattern required
-`.mm.` after an optional `.explicit.` — matching `tse2.explicit.mm.bing.net`,
-a host DuckDuckGo does not use. The one it does use is
-`tse2.explicit.bing.net`, so those thumbnails 404'd and the grid's `onerror`
-handler silently deleted the tile. Both parts are independent now; the
-allowlist is still one domain family, verified against another host and against
-a loopback URL.
+**The thumbnail proxy rejected a shard.** `/thumb` is locked by pattern so it
+cannot be used as a relay, and the pattern required `.mm.` after an optional
+`.explicit.` — matching `tse2.explicit.mm.bing.net`, a host DuckDuckGo does not
+use. The one it does use is `tse2.explicit.bing.net`, so those thumbnails 404'd
+and the grid's `onerror` handler silently deleted the tile.
+
+**The picker's footer floated over the grid.** `.foot` is the shelf card's
+footer — absolutely positioned over a cover, with a gradient behind it — and
+the dialog borrowed the class name without meaning to borrow that. The note
+saying how many results there were was being read off whatever thumbnail
+happened to be behind it. It is a row in the column now, like the head it
+mirrors.
+
+**The alternative-names strip ignored `hidden`.** `display:flex` on an
+id-qualified selector outranks the `display:none` a browser gives `[hidden]`,
+so a series with no alternative names still got the empty strip and its border.
+
+`/thumb` proxies the thumbnails rather than letting the browser load them for
+two reasons: the tailnet reaches this over plain HTTP and a browser blocks
+https images on an http page, and it keeps the picker from telling six
+strangers what is being searched for from which address. Every host whose
+pictures can appear in the grid is named in the allowlist, and the referer sent
+with each is chosen from the host — Anime-Planet's CDN has no interest in
+being told the request came from DuckDuckGo.
 
 Picking fills the field; **Save** commits it, like every other field in the
 sheet. From there the normal cache takes over and the image is kept forever.
 
-`/thumb` proxies the thumbnails rather than letting the browser load them for
-two reasons: the tailnet reaches this over plain HTTP and a browser blocks
-https images on an http page, and it keeps the picker from telling a third
-party what is being searched for from which address.
+## Alternative titles
+
+A shelf of manhwa has a naming problem. The vault filed things under whichever
+name the group that translated it used, which is variously the romanised
+Korean, a literal translation of that, the official English release, and an
+abbreviation nobody outside a Discord would recognise. `series.title` has to
+stay one value — it is the natural key `seed.py` re-attaches on — so the other
+names live in `series_alt`, as many per series as you care to type, in the
+order you type them.
+
+They are not decoration:
+
+- **They are searchable.** Alternative titles ride in the FTS index's `title`
+  column beside the real one, so typing the name you happen to remember finds
+  the row.
+- **They are queries.** The cover picker offers each one as a button. Which
+  name a catalogue has filed the art under is not knowable in advance, so you
+  try them by clicking — and for something niche that is the difference between
+  finding a cover and not.
+
+Edited under **Also known as** in the sheet, as plain text boxes rather than
+chips-on-enter: these are long, they contain punctuation, and half of them are
+romanisations you want to paste and then fix a letter of.
+
+Blank rows are dropped on save. The server drops anything equal to the real
+title, and anything that repeats another alternative in a different case, so
+neither the index nor the picker ends up with the same name twice.
+
+One subtlety worth recording, because it was wrong first: `GROUP_CONCAT`
+written with an `ORDER BY` beside it in `v_series` orders nothing. The
+aggregate has no `GROUP BY`, so there is one output row and the clause is
+dropped, leaving the values in whatever order the scan produced — for a
+`WITHOUT ROWID` table keyed on `(series_id, title)`, alphabetically. The names
+came back sorted instead of in the order they were typed, and the rows in the
+sheet rearranged themselves on save. Ordering the *subquery* and aggregating
+its output is what actually holds.
 
 ## Cover artwork
 
@@ -644,6 +758,7 @@ Overrides: `MT_DB`, `MT_SEED`, `MT_SCHEMA`, `MT_UI`, `MT_FONTS`, `MT_CACHE`,
 |---|---|---|
 | GET | `/api/library` | both trackers in one array, plus per-tracker stats, vocabularies, history |
 | GET | `/api/search?q=…` | FTS5 prefix search over title, setting, genre, type |
+| GET | `/api/images?q=…&p=…&kind=…&src=…` | six cover catalogues at once; `p` is the page, `kind` picks the tracker's sources, `src` is the comma-separated list of sources still worth asking |
 | GET | `/api/history` | the last 200 progress changes |
 | GET | `/api/export` | portable JSON keyed on title |
 | POST | `/api/update` | `{id, fields}` — partial; returns which fields changed |
@@ -653,6 +768,10 @@ Overrides: `MT_DB`, `MT_SEED`, `MT_SCHEMA`, `MT_UI`, `MT_FONTS`, `MT_CACHE`,
 
 A field whose value did not change is not written and does not appear in
 `changed`, so the logs record real edits rather than every Save.
+
+`/api/images` holds no per-search state on the server: which sources are still
+live travels out in the response and back in the next request. Two browsers
+cannot get in each other's way, and a restart mid-search costs nothing.
 
 ## Security
 

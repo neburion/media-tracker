@@ -121,6 +121,33 @@ CREATE TABLE IF NOT EXISTS series (
 CREATE INDEX IF NOT EXISTS series_status ON series(status_id);
 CREATE INDEX IF NOT EXISTS series_updated ON series(updated_at DESC);
 
+-- ── alternative titles ───────────────────────────────────────────────────
+-- The same book under every name it is sold, scanlated and searched under.
+--
+-- A shelf of manhwa has this problem badly: the vault filed things under
+-- whichever name the group that translated it used, which is variously the
+-- romanised Korean, a literal translation of it, the official English release,
+-- and an abbreviation nobody outside a Discord would recognise. `series.title`
+-- has to stay one value — it is the natural key seed.py re-attaches on — so
+-- the other names live here.
+--
+-- They are not decoration. They go into the search index alongside the real
+-- title, so typing the name you happen to remember finds the row; and the
+-- cover picker offers each one as a query, which is the difference between
+-- finding art for a niche series and not.
+--
+-- Ordered, because the first alternative is usually the one worth trying
+-- second. Keyed on (series, title) so the same name cannot be added twice.
+
+CREATE TABLE IF NOT EXISTS series_alt (
+  series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+  title     TEXT NOT NULL,
+  pos       INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (series_id, title)
+) WITHOUT ROWID;
+
+CREATE INDEX IF NOT EXISTS series_alt_title ON series_alt(title);
+
 -- ── setting and genre ────────────────────────────────────────────────────
 -- A real many-to-many, which is what makes `UPDATE tag SET name = ?` a
 -- complete rename rather than a rewrite of 11 files.
@@ -235,6 +262,16 @@ SELECT
   st.pos AS status_pos,
   (SELECT COUNT(*) FROM reading_log rl WHERE rl.series_id = s.id) AS log_count,
   (SELECT MAX(rl.at) FROM reading_log rl WHERE rl.series_id = s.id) AS last_read,
+  -- Nested, and that nesting is load-bearing. `ORDER BY` written directly
+  -- beside GROUP_CONCAT orders nothing: the aggregate has no GROUP BY, so
+  -- there is one output row and the clause is dropped, leaving the values in
+  -- whatever order the scan produced — for a WITHOUT ROWID table keyed on
+  -- (series_id, title), alphabetically. The names came back sorted instead of
+  -- in the order he typed them, and the rows in the sheet rearranged
+  -- themselves on save. Ordering the *subquery* and aggregating its output is
+  -- what actually holds.
+  (SELECT GROUP_CONCAT(x.title, CHAR(31)) FROM
+     (SELECT title FROM series_alt WHERE series_id = s.id ORDER BY pos) x) AS alt,
   (SELECT GROUP_CONCAT(t.name, CHAR(31))
      FROM series_tag stg JOIN tag t ON t.id = stg.tag_id
     WHERE stg.series_id = s.id AND t.axis = 'setting'

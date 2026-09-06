@@ -189,7 +189,7 @@ def tag_id(db, name, axis=None):
 
 def reindex(db, series_id):
     """Rebuild one series' FTS row. The single place search text is defined."""
-    r = db.execute("SELECT title, kind, type, setting, genre FROM v_series "
+    r = db.execute("SELECT title, alt, kind, type, setting, genre FROM v_series "
                    "WHERE id = ?", (series_id,)).fetchone()
     db.execute("DELETE FROM series_fts WHERE rowid = ?", (series_id,))
     if r:
@@ -198,9 +198,13 @@ def reindex(db, series_id):
         # table's columns cannot be added later without rebuilding it, and
         # "anime" and "Movie" are the same kind of search term either way.
         words = " ".join(filter(None, (r["setting"], r["genre"]))).replace(SEP, " ")
+        # Alternative titles ride in the index's `title` column beside the
+        # real one, which is the whole point of recording them: the name he
+        # remembers is often not the name the row is filed under.
+        titles = " ".join(filter(None, (r["title"], r["alt"]))).replace(SEP, " ")
         db.execute(
             "INSERT INTO series_fts(rowid, title, tags, type) VALUES (?,?,?,?)",
-            (series_id, r["title"], words.strip(),
+            (series_id, titles.strip(), words.strip(),
              f"{r['kind'] or ''} {r['type'] or ''}".strip()))
 
 

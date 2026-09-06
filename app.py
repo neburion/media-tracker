@@ -22,6 +22,7 @@ import argparse
 import base64
 import hashlib
 import hmac
+import html
 import json
 import os
 import re
@@ -31,6 +32,7 @@ import time
 import urllib.request
 import webbrowser
 from collections import Counter, defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from http.cookies import CookieError, SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -188,6 +190,8 @@ def row_to_series(r):
         "type": r["type"],
         # Two fields, not one list split by axis later. The view already knew
         # which was which.
+        # Every other name this is known by, in the order he put them in.
+        "alt": r["alt"].split(SEP) if r["alt"] else [],
         "setting": r["setting"].split(SEP) if r["setting"] else [],
         "genre": r["genre"].split(SEP) if r["genre"] else [],
         "cover": cover,
@@ -364,7 +368,7 @@ def payload(db):
 # ------------------------------------------------------------------ writing
 
 FIELDS = {"title", "chapter", "tome", "season", "rating", "kind", "status",
-          "pub", "type", "cover", "setting", "genre"}
+          "pub", "type", "cover", "setting", "genre", "alt"}
 
 # The two word fields and the table column each is stored under. Both are
 # many-to-many rows in `series_tag`, so writing one has to leave the other
@@ -446,6 +450,27 @@ def update_series(db, sid, fields):
                 (sid, S.tag_id(db, w, axis)))
         changed.append(axis)
 
+    # Alternative titles are replaced wholesale, which they can be because
+    # unlike the two word axes they do not share a table with anything.
+    if "alt" in fields:
+        primary = (str(fields.get("title") or "").strip() or before["title"]).lower()
+        want, folded = [], set()
+        for name in fields["alt"] or []:
+            name = str(name).strip()
+            # A row that repeats the real title, or repeats another
+            # alternative in different case, is noise in the index and a
+            # duplicate query in the picker.
+            if not name or name.lower() == primary or name.lower() in folded:
+                continue
+            folded.add(name.lower())
+            want.append(name)
+        if want != before["alt"]:
+            db.execute("DELETE FROM series_alt WHERE series_id = ?", (sid,))
+            for pos, name in enumerate(want):
+                db.execute("INSERT OR IGNORE INTO series_alt(series_id, title, pos) "
+                           "VALUES (?,?,?)", (sid, name, pos))
+            changed.append("alt")
+
     if "chapter" in changed:
         db.execute(
             "INSERT INTO reading_log(series_id, from_ch, to_ch) VALUES (?,?,?)",
@@ -509,41 +534,283 @@ def search(db, q):
 
 # ------------------------------------------------------------- image search
 #
-# The cover picker, modelled on Playnite's: a globe next to the artwork field
-# opens a web image search seeded with the title, you look at a grid, you click
-# the one you want. Deliberately a *web image search* rather than a metadata
-# provider — AniList and Anime-Planet serve the official volume art, and the
-# covers on this shelf are the ones scan sites make, in the tall format the
-# grid is built around. A provider cannot offer that; a search can.
+# The cover picker, modelled on Playnite's: a button next to the artwork field
+# opens a search seeded with the title, you look at a grid, you click the one
+# you want.
 #
-# DuckDuckGo, which needs no key and is where the vault's cover URLs came from
-# in the first place. Two requests: the HTML page carries a `vqd` token that
-# the JSON endpoint then requires.
+# It began as one source — a DuckDuckGo image search, which is where the
+# vault's cover URLs came from in the first place — and that source went away.
+# Not gradually: `i.js` started answering 403 to this address and has not
+# stopped, on a fresh token, from both machines, an hour after the last
+# request. DuckDuckGo's terms forbid exactly this use and they have been
+# tightening it all year, so it is not coming back on its own.
+#
+# So the picker fans out. Six sources, asked in parallel, merged into one grid,
+# and — this is the part that matters — each one wrapped so that a source which
+# fails is *skipped* rather than fatal. That is what turns a dead DuckDuckGo
+# into five working sources instead of an error box. DuckDuckGo stays in the
+# list precisely because it costs nothing while it is broken, and it is the
+# only one of the six that returns the tall scan-site plates rather than
+# official volume art.
+#
+# The five that replaced it:
+#
+#   anime-planet   The one he actually wanted, and the only one here that is
+#                  not an API — it is HTML, parsed. Cloudflare lets a plain
+#                  request through with a browser UA; there is no challenge and
+#                  no token. An exact title 302s to the series page, anything
+#                  fuzzier returns the card grid, and both shapes are handled
+#                  below. It breaks if they change their markup, silently, and
+#                  no amount of care here prevents that. It is worth it because
+#                  it is the biggest catalogue of the niche and the new, which
+#                  is most of this shelf.
+#   mangaupdates   A real API, and the breadth backstop: it returned 25 hits
+#                  for a title where MangaDex and AniList each returned 1.
+#   mangadex       A real API. Clean and mainstream; thin on the obscure.
+#   anilist        GraphQL. The highest-resolution art of the six.
+#   kitsu          JSON:API. Covers both trackers.
+#
+# `kind` is passed in because half of them are one-medium catalogues. Asking
+# MangaDex about a television show is a wasted round trip, and asking
+# Anime-Planet's /manga/ index about one is a wrong answer rather than no
+# answer.
 
-DDG_UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
-          "Chrome/126 Safari/537.36")
-# DuckDuckGo serves its image thumbnails off Bing's CDN, so the proxy allows
-# that family and nothing else. A pattern rather than a list because the shard
-# number varies per result; it is still one domain, not an open relay.
+UA_BROWSER = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+              "Chrome/126 Safari/537.36")
+
+# Thumbnails are proxied rather than hotlinked, for two reasons that have not
+# changed: the tailnet reaches this over plain HTTP and a browser will not load
+# an https image onto an http page, and it keeps the picker from telling five
+# strangers what is being searched for from which address. So every host whose
+# pictures can appear in the grid has to be named here — a fixed list, not an
+# open relay.
 #
-# Both `.mm.` and `.explicit.` are optional and independent. The first version
-# of this required `.mm.` after an optional `.explicit.`, which matches
-# `tse2.explicit.mm.bing.net` — a host DuckDuckGo does not use. The one it does
-# use is `tse2.explicit.bing.net`, so those thumbnails 404'd, and the grid's
-# onerror handler quietly deleted the tile. A few results vanished from every
-# search and nothing said so.
-THUMB_HOST = re.compile(r"^tse\d+(\.explicit)?(\.mm)?\.bing\.net$|"
-                        r"^external-content\.duckduckgo\.com$")
+# Both `.mm.` and `.explicit.` in the Bing pattern are optional and
+# independent. The first version required `.mm.` after an optional
+# `.explicit.`, which matches `tse2.explicit.mm.bing.net` — a host DuckDuckGo
+# does not use. The one it does use is `tse2.explicit.bing.net`, so those
+# thumbnails 404'd and the grid's onerror handler quietly deleted the tile.
+THUMB_HOST = re.compile(
+    r"^tse\d+(\.explicit)?(\.mm)?\.bing\.net$"
+    r"|^external-content\.duckduckgo\.com$"
+    r"|^cdn\.anime-planet\.com$"
+    r"|^cdn\.mangaupdates\.com$"
+    r"|^uploads\.mangadex\.org$"
+    r"|^s\d+\.anilist\.co$"
+    r"|^media\.kitsu\.(app|io)$")
+
+# Which site to claim to be coming from, per host. Anime-Planet's CDN is the
+# reason this exists rather than a constant: its *resized* variants refuse a
+# request that has lost the `?t=` stamp, and sending DuckDuckGo's referer to
+# five hosts that have nothing to do with DuckDuckGo was only ever going to
+# work by accident.
+REFERERS = (
+    ("anime-planet.com", "https://www.anime-planet.com/"),
+    ("mangaupdates.com", "https://www.mangaupdates.com/"),
+    ("mangadex.org", "https://mangadex.org/"),
+    ("anilist.co", "https://anilist.co/"),
+    ("kitsu", "https://kitsu.app/"),
+    ("bing.net", "https://duckduckgo.com/"),
+    ("duckduckgo.com", "https://duckduckgo.com/"),
+)
+
+
+def referer_for(url):
+    host = urlparse(url).netloc or ""
+    for needle, referer in REFERERS:
+        if needle in host:
+            return referer
+    return None
+
+
+def _http(url, headers=None, data=None, timeout=12):
+    """One request, returning (final_url, body_text)."""
+    h = {"User-Agent": UA_BROWSER, "Accept-Language": "en-US,en;q=0.9"}
+    h.update(headers or {})
+    req = urllib.request.Request(url, data=data, headers=h)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.geturl(), r.read().decode("utf-8", "replace")
+
+
+def _json(url, headers=None, data=None, timeout=12):
+    h = {"Accept": "application/json"}
+    h.update(headers or {})
+    if data is not None:
+        data = json.dumps(data).encode("utf-8")
+        h.setdefault("Content-Type", "application/json")
+    _, body = _http(url, headers=h, data=data, timeout=timeout)
+    return json.loads(body)
+
+
+def _hit(url, title, source, thumb=None, w=0, h=0):
+    """One tile. `w`/`h` are 0 for every source but DuckDuckGo.
+
+    The metadata sites publish one cover per series and do not say how big it
+    is, so the grid labels a tile with where it came from instead of with its
+    dimensions. That is the more useful fact anyway: which of six catalogues
+    thinks this picture is that book.
+    """
+    return {"url": url, "thumb": thumb or url, "title": title,
+            "source": source, "w": w, "h": h, "host": urlparse(url).netloc}
+
+
+# ── anime-planet ─────────────────────────────────────────────────────────
+# Cards look like:
+#   href="/manga/solo-leveling" class="tooltip manga30809" >
+#     <div class="crop"><img alt="Solo Leveling" data-src="…" src="…-190x273.jpg?t=…" />
+# and the thumbnail URL is the full-size one with a `-WxH` inserted before the
+# extension. Stripping that back out is how a tile gets a cover worth saving —
+# but the `?t=` stamp stays, because without it the CDN 403s the resized forms.
+AP_CARD = re.compile(
+    r'href="/(?:manga|anime)/([^"/]+)"[^>]*>\s*<div class="crop">'
+    r'<img alt="([^"]*)"[^>]*?\ssrc="([^"]+)"', re.S)
+AP_OG = re.compile(r'<meta property=.og:image. content=.([^\'"]+)')
+AP_TITLE = re.compile(r'<h1[^>]*>([^<]+)</h1>')
+AP_SIZED = re.compile(r"-\d+x\d+(?=\.\w+(?:\?|$))")
+
+
+def _ap_full(url):
+    return AP_SIZED.sub("", url)
+
+
+def _ap_text(s):
+    """Titles come out of the markup entity-encoded, and the entities are the
+    ones that matter here: Frieren arrived as `Journey&#039;s End`, which is
+    what a tile's tooltip would then have said."""
+    return html.unescape(s).strip()
+
+
+def _src_anime_planet(query, page, kind):
+    section = "anime" if kind == "Watching" else "manga"
+    final, body = _http(
+        f"https://www.anime-planet.com/{section}/all?"
+        + urlencode({"name": query, "page": page + 1}))
+
+    # An exact title never reaches the grid: Anime-Planet 302s straight to the
+    # series page, where the cover is the og:image and there is exactly one of
+    # it. Detected by where we landed, not by guessing from the query.
+    if "/all" not in urlparse(final).path:
+        m = AP_OG.search(body)
+        if not m:
+            return [], False
+        t = AP_TITLE.search(body)
+        return [_hit(_ap_full(m.group(1)),
+                     _ap_text(t.group(1)) if t else query, "anime-planet")], False
+
+    out = []
+    for _slug, title, thumb in AP_CARD.findall(body):
+        out.append(_hit(_ap_full(thumb), _ap_text(title), "anime-planet", thumb=thumb))
+    # They render a next-page link only when there is one, which is a cheaper
+    # and more honest signal than counting cards against a page size.
+    return out, f'page={page + 2}' in body
+
+
+# ── mangaupdates ─────────────────────────────────────────────────────────
+
+def _src_mangaupdates(query, page, kind):
+    if kind == "Watching":
+        return [], False
+    per = 24
+    body = _json("https://api.mangaupdates.com/v1/series/search",
+                 data={"search": query, "page": page + 1, "perpage": per})
+    out = []
+    for r in body.get("results") or []:
+        rec = r.get("record") or {}
+        url = ((rec.get("image") or {}).get("url") or {}).get("original")
+        if url:
+            out.append(_hit(url, rec.get("title") or query, "mangaupdates"))
+    return out, (page + 1) * per < int(body.get("total_hits") or 0)
+
+
+# ── mangadex ─────────────────────────────────────────────────────────────
+
+def _src_mangadex(query, page, kind):
+    if kind == "Watching":
+        return [], False
+    per = 24
+    body = _json("https://api.mangadex.org/manga?" + urlencode(
+        {"title": query, "limit": per, "offset": page * per,
+         "includes[]": "cover_art"}))
+    out = []
+    for m in body.get("data") or []:
+        art = next((r for r in m.get("relationships") or []
+                    if r.get("type") == "cover_art"), None)
+        name = ((art or {}).get("attributes") or {}).get("fileName")
+        if not name:
+            continue
+        base = f"https://uploads.mangadex.org/covers/{m['id']}/{name}"
+        titles = (m.get("attributes") or {}).get("title") or {}
+        title = titles.get("en") or next(iter(titles.values()), query)
+        out.append(_hit(base, title, "mangadex", thumb=f"{base}.256.jpg"))
+    return out, (page + 1) * per < int(body.get("total") or 0)
+
+
+# ── anilist ──────────────────────────────────────────────────────────────
+# Variables rather than an interpolated query string, which is not a security
+# nicety here so much as the only way an apostrophe in a title survives.
+
+ANILIST_Q = """
+query ($q: String, $page: Int, $type: MediaType) {
+  Page(page: $page, perPage: 20) {
+    pageInfo { hasNextPage }
+    media(search: $q, type: $type) {
+      title { romaji english }
+      coverImage { extraLarge large }
+    }
+  }
+}"""
+
+
+def _src_anilist(query, page, kind):
+    body = _json("https://graphql.anilist.co", data={
+        "query": ANILIST_Q,
+        "variables": {"q": query, "page": page + 1,
+                      "type": "ANIME" if kind == "Watching" else "MANGA"}})
+    p = ((body.get("data") or {}).get("Page") or {})
+    out = []
+    for m in p.get("media") or []:
+        art = m.get("coverImage") or {}
+        url = art.get("extraLarge") or art.get("large")
+        if not url:
+            continue
+        t = m.get("title") or {}
+        out.append(_hit(url, t.get("english") or t.get("romaji") or query,
+                        "anilist", thumb=art.get("large") or url))
+    return out, bool((p.get("pageInfo") or {}).get("hasNextPage"))
+
+
+# ── kitsu ────────────────────────────────────────────────────────────────
+
+def _src_kitsu(query, page, kind):
+    per = 20
+    section = "anime" if kind == "Watching" else "manga"
+    body = _json(f"https://kitsu.app/api/edge/{section}?" + urlencode(
+        {"filter[text]": query, "page[limit]": per, "page[offset]": page * per}),
+        headers={"Accept": "application/vnd.api+json"})
+    out = []
+    for m in body.get("data") or []:
+        a = m.get("attributes") or {}
+        art = a.get("posterImage") or {}
+        url = art.get("original") or art.get("large")
+        if not url:
+            continue
+        out.append(_hit(url, a.get("canonicalTitle") or query, "kitsu",
+                        thumb=art.get("large") or art.get("medium") or url))
+    return out, bool((body.get("links") or {}).get("next"))
+
+
+# ── duckduckgo ───────────────────────────────────────────────────────────
+# Kept whole, and kept last. Two requests: the HTML page carries a `vqd` token
+# that the JSON endpoint then requires. Both still work when the address is not
+# blocked, and when it is, the wrapper drops the source and nothing else
+# notices.
+
 _vqd_cache = {}
 
 
 def _ddg(url, referer=None):
-    h = {"User-Agent": DDG_UA, "Accept-Language": "en-US,en;q=0.9"}
-    if referer:
-        h["Referer"] = referer
-    req = urllib.request.Request(url, headers=h)
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return r.read().decode("utf-8", "replace")
+    h = {"Referer": referer} if referer else None
+    return _http(url, headers=h, timeout=20)[1]
 
 
 def _vqd(query):
@@ -563,8 +830,9 @@ def _vqd(query):
 # plate. This is a *sort key*, not a filter, and that distinction is the whole
 # point: the picker used to throw away anything outside 0.5–0.95, which on a
 # bare title search deleted three quarters of what DuckDuckGo found — every
-# square thumbnail, and every cover a listing site had padded. The grid draws
-# them all; the ones that will look right are simply at the top.
+# square thumbnail, and every cover a listing site had padded. It now orders
+# DuckDuckGo's own block and nothing else, the other five being catalogues of
+# cover art where every result is already the right shape.
 def _shape(w, h):
     r = w / h
     if 0.60 <= r <= 0.75:
@@ -578,68 +846,124 @@ def _shape(w, h):
     return 4          # landscape: a screenshot or a banner
 
 
-def image_search(query, offset=0):
-    """{results: [{url, thumb, w, h, host}], next: offset} — cover-shaped first.
-
-    `next` comes out of DuckDuckGo's own response rather than being assumed to
-    be a hundred more than the last one. It returned 95 results for a page the
-    caller had been told was 100 wide, so every page turn skipped a handful.
-    """
-    query = (query or "").strip()
-    if not query:
-        return {"results": [], "next": None}
+def _src_duckduckgo(query, page, kind):
     vqd = _vqd(query)
     if not vqd:
-        return {"results": [], "next": None}
+        return [], False
     raw = _ddg("https://duckduckgo.com/i.js?" + urlencode(
         {"l": "us-en", "o": "json", "q": query, "vqd": vqd,
-         "f": ",,,", "p": "1", "s": str(int(offset or 0))}),
+         "f": ",,,", "p": "1", "s": str(page * 100)}),
         referer="https://duckduckgo.com/")
-    try:
-        body = json.loads(raw)
-    except ValueError:
-        return {"results": [], "next": None}
+    body = json.loads(raw)
 
-    out, seen = [], set()
+    out = []
     for r in body.get("results") or []:
         w, h = int(r.get("width") or 0), int(r.get("height") or 0)
         url = r.get("image") or ""
         # The only thing rejected outright is something too small to be
         # artwork at all — an icon, a sprite, a tracking pixel.
-        if not (w and h) or min(w, h) < 120 or not url or url in seen:
+        if not (w and h) or min(w, h) < 120 or not url:
             continue
-        seen.add(url)
-        out.append({
-            "url": url,
-            "thumb": r.get("thumbnail"),
-            "w": w, "h": h,
-            "host": urlparse(url).netloc,
-        })
-    # Cover-shaped before square before wide, and biggest first inside each.
-    # Sorting on the raw distance from 2:3 instead put a 200px thumbnail that
-    # happened to be exactly 0.667 above a 2000px cover that was 0.66.
+        out.append(_hit(url, r.get("title") or query, "duckduckgo",
+                        thumb=r.get("thumbnail"), w=w, h=h))
     out.sort(key=lambda i: (_shape(i["w"], i["h"]), -i["w"] * i["h"]))
+    return out, bool(body.get("next"))
 
-    nxt = None
-    m = re.search(r"[?&]s=(\d+)", body.get("next") or "")
-    if m:
-        nxt = int(m.group(1))
-    return {"results": out, "next": nxt}
+
+# ── the fan-out ──────────────────────────────────────────────────────────
+# Order is the grid's order, and it is his: Anime-Planet first because it is
+# the catalogue this shelf was built out of, MangaUpdates second because it is
+# the one that finds the obscure, DuckDuckGo last because it is the one that is
+# currently down.
+
+# How deep any one source will be paged before it is dropped from the search.
+#
+# Not a performance guard — an honesty one. MangaUpdates matches on every word
+# separately and then reports `total_hits: 10000`, which is a sentinel rather
+# than a count: asked politely, it will hand over four hundred pages of things
+# that share the word "coin" with the title. Believing it meant the More button
+# could never go away, which is the one thing it was asked to do.
+#
+# Four pages is past the point of usefulness for all six. You are looking for
+# one picture; if it is not in the first hundred a catalogue offers, it is not
+# in that catalogue.
+MAX_PAGES = 4
+
+SOURCES = (
+    ("anime-planet", _src_anime_planet),
+    ("mangaupdates", _src_mangaupdates),
+    ("mangadex", _src_mangadex),
+    ("anilist", _src_anilist),
+    ("kitsu", _src_kitsu),
+    ("duckduckgo", _src_duckduckgo),
+)
+SOURCE_NAMES = tuple(name for name, _ in SOURCES)
+
+
+def image_search(query, page=0, live=None, kind="Reading"):
+    """{results, next, live, failed} — every source at once, in one grid.
+
+    `live` is the set of sources still worth asking, and it travels to the
+    client and back rather than being remembered here. The server holds no
+    per-search state, so two browsers cannot get in each other's way and a
+    restart mid-search costs nothing. A source that runs out drops off the
+    list; when the list empties there is no next page, which is what hides the
+    More button instead of leaving it there to return nothing.
+
+    `failed` is reported rather than swallowed so the picker can say which
+    catalogue is down. It is not an error: five results from five sources is a
+    working search, and the sixth being blocked is a fact about the sixth.
+    """
+    query = (query or "").strip()
+    if not query:
+        return {"results": [], "next": None, "live": [], "failed": []}
+
+    wanted = [(n, f) for n, f in SOURCES if live is None or n in live]
+    if not wanted:
+        return {"results": [], "next": None, "live": [], "failed": []}
+
+    def run(item):
+        name, fn = item
+        try:
+            hits, more = fn(query, page, kind)
+            return name, hits, more, None
+        except Exception as e:
+            # Deliberately broad. Every one of these is a network call to
+            # somebody else's machine, and the whole design is that any of them
+            # may be down, rate-limited, or newly reshaped without warning.
+            return name, [], False, f"{type(e).__name__}: {e}"
+
+    with ThreadPoolExecutor(max_workers=len(wanted)) as pool:
+        done = {name: rest for name, *rest in pool.map(run, wanted)}
+
+    out, seen, still, failed = [], set(), [], []
+    for name, _fn in wanted:
+        hits, more, err = done[name]
+        if err:
+            failed.append(name)
+            continue
+        for hit in hits:
+            if hit["url"] in seen:
+                continue
+            seen.add(hit["url"])
+            out.append(hit)
+        if more and page + 1 < MAX_PAGES:
+            still.append(name)
+
+    return {"results": out, "next": (page + 1) if still else None,
+            "live": still, "failed": failed}
 
 
 def thumb_bytes(url):
-    """Proxy one DuckDuckGo thumbnail.
-
-    Two reasons it is not loaded straight from the browser: the tailnet reaches
-    this over plain HTTP and a browser blocks https images on an http page, and
-    it keeps the picker from telling a third party what is being searched for
-    from which address. Locked to one host so it cannot be used as a relay.
-    """
+    """Proxy one thumbnail, from any of the hosts the grid can show."""
     if not THUMB_HOST.match(urlparse(url).netloc or ""):
         return None, None
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": DDG_UA,
-                                                   "Referer": "https://duckduckgo.com/"})
+        headers = {"User-Agent": UA_BROWSER}
+        ref = referer_for(url)
+        if ref:
+            headers["Referer"] = ref
+        req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=15) as r:
             data = r.read(4_000_000)
         return data, sniff(data)
@@ -726,7 +1050,11 @@ def _fetch_cover(cid, url):
     path.parent.mkdir(parents=True, exist_ok=True)
 
     data = None
-    for candidate, referer in ((url, "https://duckduckgo.com/"),
+    # The referer is chosen from the host now that covers arrive from six
+    # catalogues rather than one. Anime-Planet's CDN is why: claiming to come
+    # from DuckDuckGo told it nothing useful, and its resized variants are
+    # particular about who is asking.
+    for candidate, referer in ((url, referer_for(url)),
                                (unproxy(url), None)):
         if not candidate:
             continue
@@ -951,9 +1279,16 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/search":
                 return self._send({"results": search(db, (qs.get("q") or [""])[0])})
             if u.path == "/api/images":
+                # `src` is the picker handing back the sources that still had
+                # more to give. Absent on a fresh search, which means all of
+                # them; present and empty is not a thing, because a search with
+                # nothing left to ask never offers another page.
+                src = [s for s in (qs.get("src") or [""])[0].split(",") if s]
                 return self._send(image_search(
                     (qs.get("q") or [""])[0],
-                    int((qs.get("s") or ["0"])[0])))
+                    int((qs.get("p") or ["0"])[0]),
+                    live=src or None,
+                    kind=(qs.get("kind") or ["Reading"])[0]))
             if u.path == "/api/history":
                 return self._send({"history": history(db, 200)})
             if u.path == "/api/export":
