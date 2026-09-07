@@ -48,6 +48,22 @@ UI = Path(os.environ.get("MT_UI") or HERE / "ui.html")
 # different directory; absent one, there are simply no webfonts.
 _fonts = Path(os.environ.get("MT_FONTS") or HERE / "fonts")
 FONTS = _fonts if _fonts.is_dir() else None
+# Manifest, icons and service worker. Ships in the repo the same way the fonts
+# do; $MT_PWA only exists to point somewhere else.
+_pwa = Path(os.environ.get("MT_PWA") or HERE / "pwa")
+PWA = _pwa if _pwa.is_dir() else None
+
+# Exact URL -> (file in PWA, content type). A fixed table rather than a
+# pattern: these are the only files that may be read without logging in, and
+# a table cannot be talked into serving a fourth one.
+PWA_PUBLIC = {
+    "/manifest.webmanifest":  ("manifest.webmanifest",  "application/manifest+json"),
+    "/sw.js":                 ("sw.js",                 "text/javascript; charset=utf-8"),
+    "/pwa/icon-192.png":      ("icon-192.png",          "image/png"),
+    "/pwa/icon-512.png":      ("icon-512.png",          "image/png"),
+    "/pwa/icon-maskable-512.png": ("icon-maskable-512.png", "image/png"),
+    "/pwa/apple-touch-icon.png":  ("apple-touch-icon.png",  "image/png"),
+}
 CACHE = Path(os.environ.get("MT_CACHE") or HERE / ".cache")
 DEFAULT_HOST = os.environ.get("MT_HOST", "127.0.0.1")
 DEFAULT_PORT = int(os.environ.get("MT_PORT", "8778"))
@@ -1244,6 +1260,22 @@ class Handler(BaseHTTPRequestHandler):
             if FONTS and re.fullmatch(r"[a-z-]+\.woff2", name):
                 return self._file(FONTS / name, "font/woff2", cache=True)
             return self.send_error(404, "no such font")
+
+        # The install kit, also ahead of the gate — and this one is not a
+        # nicety. A <link rel=manifest> is fetched *without* credentials
+        # unless the tag opts in, so behind the session cookie the browser
+        # gets a 401, concludes there is no manifest, and "add to home
+        # screen" quietly degrades to a bookmark that opens a tab. That is
+        # the whole failure mode this exists to avoid. None of it is data:
+        # a name, a theme colour and three drawings of a book.
+        if u.path in PWA_PUBLIC:
+            if not PWA:
+                return self.send_error(404, "no pwa assets")
+            name, ctype = PWA_PUBLIC[u.path]
+            # The worker must be served from the root to claim the root as
+            # its scope, which is why /sw.js is not under /pwa/. Never
+            # cached: a stale worker outlives every other kind of stale.
+            return self._file(PWA / name, ctype, cache=name.endswith(".png"))
 
         if not self.authed():
             return
