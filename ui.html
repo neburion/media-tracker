@@ -472,6 +472,11 @@ main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
 .stars{display:flex;align-items:center;gap:10px}
 .stars input[type=range]{flex:1;accent-color:var(--a9);height:38px;min-width:0}
 .stars output{font-family:Mono,monospace;font-size:17px;width:58px;text-align:right}
+/* "Best of the Genre" will not fit in a 58px column beside the slider, so the
+   number keeps that column and the word gets the line underneath. The line is
+   reserved even when empty, or clearing a rating makes the sheet jump. */
+.tier{display:block;margin-top:6px;min-height:18px;line-height:18px;
+  font-size:13px;color:var(--ink-2)}
 .picks{display:flex;flex-wrap:wrap;gap:6px}
 .pick{height:34px;padding:0 14px;border:1px solid var(--rule);background:var(--paper);
   border-radius:var(--r-md);font-size:13px;color:var(--ink-2)}
@@ -737,6 +742,12 @@ const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = v => v === null || v === undefined ? '' : String(v);
+
+/* Eleven numbers that always meant eleven particular things, written down at
+   last. Index is the score. */
+const TIER = ['Horrible', 'Offensive', 'Really Bad', 'Bad', 'Slop', 'Mid',
+              'Good', 'Really Good', 'Excellent', 'Best of the Genre',
+              'Favorite'];
 
 /* A stable hue per title, so a book with no artwork still looks like itself
    rather than like every other book with no artwork. */
@@ -1125,6 +1136,11 @@ function openSheet(id){
     `<button class="pick" data-many="${axis}" data-v="${esc(v)}"
        aria-pressed="${cur.includes(v)}">${esc(v)}</button>`).join('');
 
+  // Ratings used to move in halves and some titles still carry one. A
+  // whole-step slider cannot sit on 6.5, so round for the thumb and show the
+  // rounded number too: the sheet says what saving would actually store.
+  const grade = s.rating === null ? null : Math.round(s.rating);
+
   $('#sheet').innerHTML = `
     <div class="sheet-top">
       ${s.coverId ? `<img class="thumb" src="/cover/${s.coverId}" alt="">`
@@ -1138,11 +1154,12 @@ function openSheet(id){
       <div class="field">
         <span class="lbl">Rating</span>
         <div class="stars">
-          <input type="range" id="e-rating" min="0" max="10" step="0.5"
-                 value="${s.rating ?? 0}">
-          <output id="e-rating-out">${s.rating === null ? 'None' : esc(fmt(s.rating))}</output>
+          <input type="range" id="e-rating" min="0" max="10" step="1"
+                 value="${grade ?? 0}">
+          <output id="e-rating-out">${grade === null ? 'None' : grade}</output>
           <button class="pick" id="e-rating-clear">Clear</button>
         </div>
+        <span class="tier" id="e-rating-tier">${grade === null ? '' : esc(TIER[grade])}</span>
       </div>
 
       <div class="field">
@@ -1438,6 +1455,7 @@ document.addEventListener('click', async ev => {
     // output element carries that state and Clear puts it back.
     $('#e-rating').value = 0;
     $('#e-rating-out').textContent = 'None';
+    $('#e-rating-tier').textContent = '';
     return;
   }
 
@@ -1500,8 +1518,11 @@ document.addEventListener('click', async ev => {
 });
 
 document.addEventListener('input', ev => {
-  if (ev.target.id === 'e-rating')
-    $('#e-rating-out').textContent = fmt(Number(ev.target.value));
+  if (ev.target.id === 'e-rating'){
+    const v = Number(ev.target.value);
+    $('#e-rating-out').textContent = fmt(v);
+    $('#e-rating-tier').textContent = TIER[v];
+  }
 });
 
 document.addEventListener('keydown', ev => {
