@@ -813,6 +813,9 @@ const byId = id => S.data.series.find(s => s.id === id);
    nothing — 'once' — which is what turns the stepper into a switch. */
 const typesOf  = k => (S.data.meta.typesByKind || {})[k] || [];
 const typeNames = k => typesOf(k).map(x => x.name);
+// Setting and Genre are a tracker's own vocabulary, same as its types: Murim
+// in the anime picker was the flat tag list's mistake outliving it.
+const wordsOf  = k => (S.data.meta.wordsByKind || {})[k] || {};
 const modeOf = (k, type) => (typesOf(k).find(x => x.name === type) || {}).progress || '';
 /* The + on a card promises one more of something. Same word as the field label,
    lowercased, except for a film, which you do not get one more of. */
@@ -867,7 +870,8 @@ function fillPickers(){
   opt($('#f-pub'), m.pub, 'Any');
   // One dropdown per field, each holding only its own words. The old single
   // "Any tag" menu was 59 items long and mixed both together.
-  for (const axis of AXES) opt($('#f-' + axis), (m.words || {})[axis] || [], 'Any');
+  for (const axis of AXES)
+    opt($('#f-' + axis), wordsOf(S.kind)[axis] || [], 'Any');
   $('#f-sort').value = S.sort;
 
   // No Kind menu on the add dialog: he is standing in one.
@@ -1132,7 +1136,7 @@ function openSheet(id){
        aria-pressed="${v === cur}">${esc(v)}</button>`).join('');
   // Many-of, and the only difference in the markup is that nothing clears the
   // others when one is pressed. Setting and Genre are lists; the shelf is not.
-  const many = (axis, cur) => ((m.words || {})[axis] || []).map(v =>
+  const many = (axis, cur) => (wordsOf(s.kind)[axis] || []).map(v =>
     `<button class="pick" data-many="${axis}" data-v="${esc(v)}"
        aria-pressed="${cur.includes(v)}">${esc(v)}</button>`).join('');
 

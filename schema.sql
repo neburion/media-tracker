@@ -159,10 +159,20 @@ CREATE INDEX IF NOT EXISTS series_alt_title ON series_alt(title);
 -- you pick from, Setting and Genre. There is no free-text box any more, so there
 -- is no way to invent a word, which is why nothing here has to guard against
 -- one being spelled two ways.
+--
+-- `kind_id` is the same move `type` made above, and for the same reason: a
+-- vocabulary belongs to a tracker. Murim in the anime picker is the flat list's
+-- mistake surviving one table longer. Both trackers therefore own a *row* each
+-- for a word they share, which is why UNIQUE is over the triple and not over
+-- the name — Reading's Action and Watching's Action are two different tags that
+-- happen to read alike, and renaming one must not touch the other.
+-- Nullable for a word that predates the split.
 CREATE TABLE IF NOT EXISTS tag (
-  id   INTEGER PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  axis TEXT
+  id      INTEGER PRIMARY KEY,
+  name    TEXT NOT NULL,
+  axis    TEXT,
+  kind_id INTEGER REFERENCES kind(id) ON DELETE SET NULL,
+  UNIQUE (name, axis, kind_id)
 );
 
 CREATE TABLE IF NOT EXISTS series_tag (

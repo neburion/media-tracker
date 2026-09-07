@@ -251,19 +251,28 @@ def types_by_kind(db):
     return dict(out)
 
 
-def words(db):
-    """{axis: [word…]} in vocabulary order — the Setting and Genre pickers.
+def words_by_kind(db):
+    """{kind: {axis: [word…]}} in vocabulary order — the Setting and Genre
+    pickers, one set per tracker.
 
     Straight off `tag`, ordered by seed.py's own list rather than by how often
     a word is used: a menu whose items move every time you file something is a
     menu you have to read every time.
+
+    Shaped like typesByKind because it has the same job and the same problem:
+    `meta` is fetched once for the whole app, so the split has to survive as
+    data the client indexes by whichever tracker is open.
     """
-    order = {name: i for names in S.TAGS.values() for i, name in enumerate(names)}
     out = {}
-    for axis in S.TAGS:
-        names = [r["name"] for r in db.execute(
-            "SELECT name FROM tag WHERE axis = ?", (axis,))]
-        out[axis] = sorted(names, key=lambda n: (order.get(n, 1e9), n))
+    for kind, axes in S.TAGS.items():
+        order = {name: i for names in axes.values() for i, name in enumerate(names)}
+        got = {}
+        for axis in axes:
+            names = [r["name"] for r in db.execute("""
+                SELECT t.name FROM tag t JOIN kind k ON k.id = t.kind_id
+                WHERE t.axis = ? AND k.name = ?""", (axis, kind))]
+            got[axis] = sorted(names, key=lambda n: (order.get(n, 1e9), n))
+        out[kind] = got
     return out
 
 
@@ -275,7 +284,7 @@ def vocab(db):
     out["kind"] = [k["name"] for k in kinds(db)]
     out["units"] = {k["name"]: k["unit"] for k in kinds(db)}
     out["typesByKind"] = types_by_kind(db)
-    out["words"] = words(db)
+    out["wordsByKind"] = words_by_kind(db)
     return out
 
 
@@ -447,6 +456,35 @@ def update_series(db, sid, fields):
 
     # Each axis is replaced on its own. The rows live in one join table, so
     # clearing it to write Setting would take Genre with it.
+    #
+    # Tags are per tracker now, so both halves need the series' kind: the
+    # DELETE to avoid reaching across into the other tracker's rows, and
+    # tag_id to resolve the word against the right copy. A kind change in this
+    # same call has already been written above, so this reads it back rather
+    # than trusting `before`.
+    kind_id = db.execute("SELECT kind_id FROM series WHERE id = ?",
+                         (sid,)).fetchone()[0]
+
+    # A series can be moved between trackers, and its tag rows do not follow on
+    # their own: they would go on pointing at the vocabulary of the tracker it
+    # left. Nothing looks wrong — the pills match by name — right up until the
+    # next save clears this tracker's rows, leaves the other's behind, and the
+    # word appears twice. So the rows are repointed at the twins first, and any
+    # word the new tracker does not have is dropped rather than invented.
+    for r in db.execute("""
+            SELECT st.tag_id, t.name, t.axis FROM series_tag st
+            JOIN tag t ON t.id = st.tag_id
+            WHERE st.series_id = ? AND t.kind_id IS NOT ?""",
+                        (sid, kind_id)).fetchall():
+        twin = db.execute(
+            "SELECT id FROM tag WHERE name = ? AND axis IS ? AND kind_id IS ?",
+            (r["name"], r["axis"], kind_id)).fetchone()
+        db.execute("DELETE FROM series_tag WHERE series_id = ? AND tag_id = ?",
+                   (sid, r["tag_id"]))
+        if twin:
+            db.execute("INSERT OR IGNORE INTO series_tag(series_id, tag_id) "
+                       "VALUES (?,?)", (sid, twin["id"]))
+
     for axis in AXES:
         if axis not in fields:
             continue
@@ -455,15 +493,16 @@ def update_series(db, sid, fields):
             continue
         db.execute("""
             DELETE FROM series_tag WHERE series_id = ? AND tag_id IN
-              (SELECT id FROM tag WHERE axis = ?)""", (sid, axis))
+              (SELECT id FROM tag WHERE axis = ? AND kind_id IS ?)""",
+                   (sid, axis, kind_id))
         for w in want:
-            # Filed onto the axis it was picked from. The UI only offers words
-            # that are already in the vocabulary, so this inserts nothing new
-            # in practice — it is here so an API caller cannot leave one
-            # unfiled and invisible to both pickers.
+            # Filed onto the axis it was picked from, inside this tracker. The
+            # UI only offers words that are already in the vocabulary, so this
+            # inserts nothing new in practice — it is here so an API caller
+            # cannot leave one unfiled and invisible to both pickers.
             db.execute(
                 "INSERT OR IGNORE INTO series_tag(series_id, tag_id) VALUES (?,?)",
-                (sid, S.tag_id(db, w, axis)))
+                (sid, S.tag_id(db, w, axis, kind_id)))
         changed.append(axis)
 
     # Alternative titles are replaced wholesale, which they can be because

@@ -131,18 +131,51 @@ RETIRED_TYPES = ["TV", "Miniseries", "Short", "OVA", "ONA", "Special",
 # three genres and one-of would have thrown that away.
 #
 # Order inside an axis is presentation order, roughly most-used first.
+# Keyed by kind first, because a vocabulary belongs to a tracker. `type`
+# already hangs off `kind` for exactly this reason, and offering Murim in the
+# anime picker is the same mistake the flat list was.
+#
+# The two start identical and are meant to drift. They are written out twice
+# rather than derived from one another precisely so that dropping a word from
+# Watching is a one-line edit that cannot disturb Reading.
+#
+# Wuxia is gone: it and Murim named one shelf, and the shelf is called Murim.
+# The 90 series wearing it were moved by migrate(), not by this list.
 TAGS = {
-    "setting": [
-        "Fantasy", "Dark Fantasy", "Modern", "Hunter Fantasy", "Murim",
-        "Wuxia", "Apocalypse", "Supernatural", "Sci-Fi", "Historical",
-        "Academy", "School Life", "Tower", "Dungeon",
-    ],
-    "genre": [
-        "Action", "Adventure", "Comedy", "Romance", "Drama", "Psychological",
-        "Horror", "Thriller", "Mystery", "Slice of Life", "Sports",
-    ],
+    "Reading": {
+        "setting": [
+            "Fantasy", "Dark Fantasy", "Modern", "Hunter Fantasy", "Murim",
+            "Apocalypse", "Supernatural", "Sci-Fi", "Historical",
+            "Academy", "School Life", "Tower", "Dungeon",
+        ],
+        "genre": [
+            "Action", "Adventure", "Comedy", "Romance", "Drama", "Psychological",
+            "Horror", "Thriller", "Mystery", "Slice of Life", "Sports",
+        ],
+    },
+    "Watching": {
+        "setting": [
+            "Fantasy", "Dark Fantasy", "Modern", "Hunter Fantasy", "Murim",
+            "Apocalypse", "Supernatural", "Sci-Fi", "Historical",
+            "Academy", "School Life", "Tower", "Dungeon",
+        ],
+        "genre": [
+            "Action", "Adventure", "Comedy", "Romance", "Drama", "Psychological",
+            "Horror", "Thriller", "Mystery", "Slice of Life", "Sports",
+        ],
+    },
 }
-AXIS_OF = {name: axis for axis, names in TAGS.items() for name in names}
+
+AXES = ("setting", "genre")
+
+# Which question a word answers, across every kind. A word means the same axis
+# in both trackers -- "Modern" is a setting wherever it appears -- so this stays
+# flat; a name landing on two different axes would be a bug in TAGS above
+# rather than something to resolve here.
+AXIS_OF = {name: axis
+           for axes in TAGS.values()
+           for axis, names in axes.items()
+           for name in names}
 
 
 def connect(path=DB):
@@ -171,20 +204,29 @@ def kind_units(db):
     return {r["name"]: r["unit"] for r in db.execute("SELECT name, unit FROM kind")}
 
 
-def tag_id(db, name, axis=None):
-    """Resolve a setting or genre, filing a new one onto the axis it came from.
+def tag_id(db, name, axis=None, kind_id=None):
+    """Resolve a setting or genre *within one tracker*, filing a new one onto
+    the axis it came from.
 
     `axis` is what keeps the pickers honest. A word with none belongs to
     neither menu, so it can be attached to a series and then never seen again
-    — which is exactly what the free-text tag box used to produce."""
+    — which is exactly what the free-text tag box used to produce.
+
+    `kind_id` is what keeps the two trackers apart. The same word is a
+    different row in each, so resolving without one would hand Reading's
+    Action to a film. A caller that genuinely has no kind — an import of a
+    series filed under neither — still gets the kindless row, which is what
+    the nullable column is for."""
     name = name.strip()
-    row = db.execute("SELECT id, axis FROM tag WHERE name = ?", (name,)).fetchone()
+    row = db.execute(
+        "SELECT id, axis FROM tag WHERE name = ? AND kind_id IS ?",
+        (name, kind_id)).fetchone()
     if row:
         if axis and not row["axis"]:
             db.execute("UPDATE tag SET axis = ? WHERE id = ?", (axis, row["id"]))
         return row["id"]
-    return db.execute("INSERT INTO tag(name, axis) VALUES (?,?)",
-                      (name, axis or AXIS_OF.get(name))).lastrowid
+    return db.execute("INSERT INTO tag(name, axis, kind_id) VALUES (?,?,?)",
+                      (name, axis or AXIS_OF.get(name), kind_id)).lastrowid
 
 
 def reindex(db, series_id):
@@ -235,15 +277,18 @@ def upsert_vocab(db):
                        "kind_id = COALESCE(type.kind_id, excluded.kind_id), "
                        "progress = excluded.progress",
                        (name, pos, kinds.get(kind), progress))
-    # Tags are upserted by name too, but only their axis is authoritative here:
-    # a tag the user invented in the sheet keeps existing with axis NULL, and
-    # one of ours gets its axis restored if it was somehow cleared.
-    for axis, names in TAGS.items():
-        for name in names:
-            db.execute(
-                "INSERT INTO tag(name, axis) VALUES (?,?) "
-                "ON CONFLICT(name) DO UPDATE SET axis = excluded.axis",
-                (name, axis))
+    # One row per word per tracker. Insert-only, not an upsert on axis as this
+    # was before the kind split: with UNIQUE over (name, axis, kind_id) a row
+    # whose axis was somehow cleared is a different key, so there is nothing
+    # for ON CONFLICT to find and repair. Anything wearing a NULL axis is left
+    # alone and stays out of both pickers, which is the rule it always had.
+    for kind, axes in TAGS.items():
+        for axis, names in axes.items():
+            for name in names:
+                db.execute(
+                    "INSERT INTO tag(name, axis, kind_id) VALUES (?,?,?) "
+                    "ON CONFLICT(name, axis, kind_id) DO NOTHING",
+                    (name, axis, kinds.get(kind)))
 
 
 def once(db, name):
@@ -272,6 +317,7 @@ def migrate(db):
     add_column(db, "series", "tome", "REAL")
     add_column(db, "series", "season", "REAL")
     add_column(db, "type", "kind_id", "INTEGER REFERENCES kind(id)")
+    add_column(db, "tag", "kind_id", "INTEGER REFERENCES kind(id)")
     add_column(db, "type", "progress", "TEXT NOT NULL DEFAULT ''")
 
     # v_series gained kind and unit. A view is not a table: dropping and
@@ -456,6 +502,123 @@ def migrate(db):
     # column every row still reads '' — and keying off that filed a film under
     # season 1. TYPES above is the authority on which types count, and it does
     # not depend on what order anything ran in.
+    # Wuxia and Murim named one shelf. Xianxia was folded into Wuxia once
+    # already (see above); this finishes the job under the name actually used.
+    # A merge this time, not a rename: 78 series were tagged Murim and 90
+    # Wuxia, 5 wore both, so the join rows are repointed with OR IGNORE and the
+    # five duplicates collapse on the primary key rather than erroring.
+    if once(db, "tag-wuxia-to-murim"):
+        src = db.execute("SELECT id FROM tag WHERE name = 'Wuxia'").fetchone()
+        dst = db.execute("SELECT id FROM tag WHERE name = 'Murim'").fetchone()
+        if src and dst:
+            hit = [r[0] for r in db.execute(
+                "SELECT series_id FROM series_tag WHERE tag_id = ?", (src["id"],))]
+            db.execute("INSERT OR IGNORE INTO series_tag(series_id, tag_id) "
+                       "SELECT series_id, ? FROM series_tag WHERE tag_id = ?",
+                       (dst["id"], src["id"]))
+            db.execute("DELETE FROM tag WHERE id = ?", (src["id"],))
+            for sid in hit:
+                reindex(db, sid)
+            print(f"  migrate: Wuxia merged into Murim across {len(hit)} series")
+        elif src:
+            db.execute("UPDATE tag SET name = 'Murim' WHERE id = ?", (src["id"],))
+            print("  migrate: Wuxia renamed to Murim")
+
+    # A vocabulary belongs to a tracker, so every existing tag becomes
+    # Reading's — that is where all but four of the join rows already were —
+    # and Watching gets its own copy of the same words to start from.
+    #
+    # UNIQUE(name) cannot be widened in place; SQLite has no ALTER for a table
+    # constraint. So the table is rebuilt. series_tag references tag(id), and
+    # the ids are carried across unchanged, so the join rows need no rewrite —
+    # only the four already filed under Watching get repointed at the copies.
+    if once(db, "tags-per-kind"):
+        reading = db.execute("SELECT id FROM kind WHERE name = 'Reading'").fetchone()
+        watching = db.execute("SELECT id FROM kind WHERE name = 'Watching'").fetchone()
+        if reading and watching:
+            # v_series selects from `tag`, and SQLite refuses to drop a table a
+            # view still names. Unlike the other repairs here this one cannot
+            # simply leave the view dropped for main() to rebuild, because the
+            # repointing below calls reindex(), which reads it. So the view's
+            # own SQL is taken from sqlite_master and put back verbatim —
+            # nothing about its shape is restated here to drift out of date.
+            view = db.execute(
+                "SELECT sql FROM sqlite_master WHERE type='view' AND name='v_series'"
+            ).fetchone()
+
+            # series_tag.tag_id is ON DELETE CASCADE, so `DROP TABLE tag` takes
+            # all 2467 join rows with it — every tag on the shelf. The usual
+            # guard is PRAGMA foreign_keys = OFF, and it does not work here:
+            # SQLite ignores that pragma inside a transaction, migrate() runs
+            # in one, and the pragma fails *silently*. So the rows are held
+            # aside and put back by hand instead, which does not depend on the
+            # pragma taking effect at all. The ids survive the rebuild, so they
+            # go back exactly as they came out.
+            db.execute("CREATE TEMP TABLE tag_link AS "
+                       "SELECT series_id, tag_id FROM series_tag")
+            held = db.execute("SELECT COUNT(*) FROM tag_link").fetchone()[0]
+
+            db.execute("DROP VIEW IF EXISTS v_series")
+            db.executescript("""
+                CREATE TABLE tag_new (
+                  id      INTEGER PRIMARY KEY,
+                  name    TEXT NOT NULL,
+                  axis    TEXT,
+                  kind_id INTEGER REFERENCES kind(id) ON DELETE SET NULL,
+                  UNIQUE (name, axis, kind_id)
+                );
+                INSERT INTO tag_new(id, name, axis, kind_id)
+                     SELECT id, name, axis, kind_id FROM tag;
+                DROP TABLE tag;
+                ALTER TABLE tag_new RENAME TO tag;
+            """)
+            if view:
+                db.execute(view["sql"])
+
+            db.execute("INSERT OR IGNORE INTO series_tag(series_id, tag_id) "
+                       "SELECT series_id, tag_id FROM tag_link")
+            back = db.execute("SELECT COUNT(*) FROM series_tag").fetchone()[0]
+            db.execute("DROP TABLE tag_link")
+            if back != held:
+                raise SystemExit(
+                    f"tags-per-kind: {held} tag links went into the rebuild and "
+                    f"{back} came out. Refusing to commit a half-tagged shelf.")
+
+            db.execute("UPDATE tag SET kind_id = ?", (reading["id"],))
+
+            # Watching's copy, made from Reading's rows rather than from TAGS,
+            # so a word the user is using but that is no longer in the list
+            # comes across too instead of vanishing from one tracker.
+            db.execute("""
+                INSERT OR IGNORE INTO tag(name, axis, kind_id)
+                     SELECT name, axis, ? FROM tag WHERE kind_id = ?
+            """, (watching["id"], reading["id"]))
+
+            # The handful of series already filed under Watching are pointing
+            # at what are now Reading's rows. Move them to the twins.
+            moved = 0
+            for r in db.execute("""
+                    SELECT st.series_id, st.tag_id, t.name, t.axis
+                    FROM series_tag st
+                    JOIN tag t    ON t.id = st.tag_id
+                    JOIN series s ON s.id = st.series_id
+                    WHERE s.kind_id = ? AND t.kind_id = ?
+                """, (watching["id"], reading["id"])).fetchall():
+                twin = db.execute(
+                    "SELECT id FROM tag WHERE name = ? AND axis IS ? AND kind_id = ?",
+                    (r["name"], r["axis"], watching["id"])).fetchone()
+                if not twin:
+                    continue
+                db.execute("DELETE FROM series_tag WHERE series_id = ? AND tag_id = ?",
+                           (r["series_id"], r["tag_id"]))
+                db.execute("INSERT OR IGNORE INTO series_tag(series_id, tag_id) "
+                           "VALUES (?,?)", (r["series_id"], twin["id"]))
+                reindex(db, r["series_id"])
+                moved += 1
+            n = db.execute("SELECT COUNT(*) FROM tag").fetchone()[0]
+            print(f"  migrate: tags split per tracker ({n} rows), "
+                  f"{moved} Watching tag(s) repointed")
+
     if once(db, "season-backfill"):
         counted = [name for name, mode in TYPES["Watching"] if mode == ""]
         films   = [name for name, mode in TYPES["Watching"] if mode == "once"]
