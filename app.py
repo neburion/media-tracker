@@ -451,8 +451,8 @@ def update_series(db, sid, fields):
                 changed.append(field)
 
     if sets:
-        db.execute(f"UPDATE series SET {', '.join(sets)}, "
-                   f"updated_at = datetime('now') WHERE id = ?", args + [sid])
+        db.execute(f"UPDATE series SET {', '.join(sets)} WHERE id = ?",
+                   args + [sid])
 
     # Each axis is replaced on its own. The rows live in one join table, so
     # clearing it to write Setting would take Genre with it.
@@ -538,6 +538,17 @@ def update_series(db, sid, fields):
             (sid, before["status"], str(fields["status"] or "").strip()))
 
     if changed:
+        # "Recently touched" has to mean touched, and the stamp used to be set
+        # beside the scalar UPDATE above — which is only some of the ways a
+        # series changes. Setting and Genre live in series_tag and alt titles
+        # in series_alt, so retagging something wrote no column on `series` and
+        # left it exactly where it was in the default order.
+        #
+        # One bump here instead, on the same condition that already decides
+        # whether anything happened at all. Every axis that reaches `changed`
+        # is covered by construction, including any added after this.
+        db.execute("UPDATE series SET updated_at = datetime('now') WHERE id = ?",
+                   (sid,))
         S.reindex(db, sid)
         db.commit()
     return changed
