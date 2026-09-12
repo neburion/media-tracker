@@ -252,13 +252,13 @@ The vault's tags were a flat pile of 59, written by hand over years, in which
 (one series) were peers in one alphabetical menu. Eighteen of the 59 were used
 twice or less, and six were the same tag spelled two ways.
 
-They are now a closed vocabulary of 25 split across two questions, and the app
+They are now a closed vocabulary of 24 split across two questions, and the app
 does not call them tags at all — it shows two named fields:
 
 | field | the question | e.g. |
 |---|---|---|
-| **Setting** | where does it take place | Fantasy, Murim, Wuxia, Modern, Hunter Fantasy, Apocalypse, Academy |
-| **Genre** | what does it feel like | Action, Adventure, Romance, Horror, Slice of Life |
+| **Setting** | where does it take place | Fantasy, Murim, Modern, Hunter Fantasy, Apocalypse, Academy, Video Game |
+| **Genre** | what does it feel like | Action, Adventure, Romance, Horror, Chill |
 
 Both are **picked, not typed**. The sheet shows every word in the vocabulary as
 a pill you click, many-of, with a square corner where the single-choice rows

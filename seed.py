@@ -141,27 +141,36 @@ RETIRED_TYPES = ["TV", "Miniseries", "Short", "OVA", "ONA", "Special",
 #
 # Wuxia is gone: it and Murim named one shelf, and the shelf is called Murim.
 # The 90 series wearing it were moved by migrate(), not by this list.
+#
+# Dungeon went the same way, minus the shelf. It named a room rather than a
+# world, and every series wearing it was already Fantasy or Hunter Fantasy,
+# which is where a dungeon crawl lives anyway. Video Game has its slot: the
+# stat screens, the levels and the respawns that Fantasy does not say.
+#
+# Slice of Life is now Chill, a rename and not a replacement. The series under
+# it are slow-life and healing stories to a title, and Chill is the reason they
+# were picked up. Same shelf, less of a genre-list word about it.
 TAGS = {
     "Reading": {
         "setting": [
             "Fantasy", "Dark Fantasy", "Modern", "Hunter Fantasy", "Murim",
             "Apocalypse", "Supernatural", "Sci-Fi", "Historical",
-            "Academy", "School Life", "Tower", "Dungeon",
+            "Academy", "School Life", "Tower", "Video Game",
         ],
         "genre": [
             "Action", "Adventure", "Comedy", "Romance", "Drama", "Psychological",
-            "Horror", "Thriller", "Mystery", "Slice of Life", "Sports",
+            "Horror", "Thriller", "Mystery", "Chill", "Sports",
         ],
     },
     "Watching": {
         "setting": [
             "Fantasy", "Dark Fantasy", "Modern", "Hunter Fantasy", "Murim",
             "Apocalypse", "Supernatural", "Sci-Fi", "Historical",
-            "Academy", "School Life", "Tower", "Dungeon",
+            "Academy", "School Life", "Tower", "Video Game",
         ],
         "genre": [
             "Action", "Adventure", "Comedy", "Romance", "Drama", "Psychological",
-            "Horror", "Thriller", "Mystery", "Slice of Life", "Sports",
+            "Horror", "Thriller", "Mystery", "Chill", "Sports",
         ],
     },
 }
@@ -633,6 +642,54 @@ def migrate(db):
               (SELECT id FROM type WHERE name IN ({marks(films)}))""", films)
         if n:
             print(f"  migrate: {n} show(s) filed under season 1")
+
+    # Dungeon named a room, not a world. Every one of the 16 series wearing it
+    # is also Fantasy or Hunter Fantasy and carries four tags at least, so the
+    # word goes without costing any of them their setting and without leaving
+    # one bare — no re-read from tags.json, unlike the premise cull.
+    #
+    # series_tag.tag_id is ON DELETE CASCADE, so the join rows go with the tag.
+    # Their series have to be reindexed by hand: the FTS row is a flat string
+    # built from the view, and nothing rebuilds it because a tag went away.
+    if once(db, "tag-drop-dungeon"):
+        hit = [r["series_id"] for r in db.execute(
+            "SELECT DISTINCT series_id FROM series_tag WHERE tag_id IN "
+            "(SELECT id FROM tag WHERE name = 'Dungeon')")]
+        n = db.execute("DELETE FROM tag WHERE name = 'Dungeon'").rowcount
+        for sid in hit:
+            reindex(db, sid)
+        if n:
+            print(f"  migrate: dropped Dungeon from {len(hit)} series")
+
+    # Slice of Life is Chill. A rename, so its 32 series keep the word rather
+    # than come out bare: the join rows point at the tag's id and never see the
+    # spelling. One row per tracker now, hence the loop, and a fold instead of
+    # a rename for whichever of them already has a Chill to collide with.
+    #
+    # Runs before upsert_vocab(), which is the only reason a straight rename
+    # works at all — the Chill this file now asks for is not in the table yet.
+    if once(db, "tag-slice-of-life-to-chill"):
+        moved = 0
+        for row in db.execute(
+                "SELECT id, axis, kind_id FROM tag WHERE name = 'Slice of Life'"
+                ).fetchall():
+            hit = [r["series_id"] for r in db.execute(
+                "SELECT series_id FROM series_tag WHERE tag_id = ?", (row["id"],))]
+            twin = db.execute(
+                "SELECT id FROM tag WHERE name = 'Chill' AND axis IS ? AND kind_id IS ?",
+                (row["axis"], row["kind_id"])).fetchone()
+            if twin:
+                db.execute("INSERT OR IGNORE INTO series_tag(series_id, tag_id) "
+                           "SELECT series_id, ? FROM series_tag WHERE tag_id = ?",
+                           (twin["id"], row["id"]))
+                db.execute("DELETE FROM tag WHERE id = ?", (row["id"],))
+            else:
+                db.execute("UPDATE tag SET name = 'Chill' WHERE id = ?", (row["id"],))
+            for sid in hit:
+                reindex(db, sid)
+            moved += len(hit)
+        if moved:
+            print(f"  migrate: Slice of Life renamed Chill across {moved} series")
 
     # ── keep the view and the index honest ──────────────────────────────
     #
