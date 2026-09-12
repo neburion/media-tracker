@@ -398,6 +398,9 @@ body.selecting .fab{display:none}
    is a judgement no query makes, and 153 separate saves is not a way to record
    it — so the plate becomes a checkbox and one bar at the bottom applies one
    decision to everything ticked. */
+/* Shift-clicking a list selects the text between the two clicks unless the
+   cards say not to, and a grid full of highlighted titles reads as a bug. */
+.grid{user-select:none}
 .book.picked .plate{border-color:var(--a9);box-shadow:0 0 0 2px var(--a9)}
 .book.picked .plate img{opacity:.55}
 /* The empty circle is drawn on every card in select mode so the affordance is
@@ -443,13 +446,22 @@ body.selecting .fab{display:none}
    within a second of seeing the cover — which the grid, showing thirty at
    once, gives you no way to say. */
 .solo{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-.solo-head{display:flex;align-items:center;gap:8px}
+.solo-head{display:flex;align-items:baseline;gap:8px}
+.solo-h{font-family:Lit,Georgia,serif;font-size:20px;font-weight:600;margin:0;
+  letter-spacing:-.01em}
 .solo-head .count{margin-left:auto;font-family:Mono,monospace;font-size:12px;
   color:var(--ink-3);white-space:nowrap}
-.modes{display:flex;gap:6px}
-.mode{height:32px;padding:0 13px;border:1px solid var(--rule);background:var(--paper);
-  color:var(--ink-3);border-radius:var(--r-md);font-size:12.5px}
-.mode[aria-pressed=true]{background:var(--a3);border-color:var(--a7);color:var(--a11)}
+
+/* The way in. Above the grid and spelling out what it does, because the same
+   thing behind an unlabelled icon in the toolbar went unfound. */
+.lead{
+  display:flex;flex-direction:column;gap:3px;width:100%;text-align:left;
+  margin:0 0 var(--gap);padding:13px 16px;border-radius:var(--r-xl);
+  border:1px solid var(--a7);background:var(--a3);color:var(--a11);
+}
+.lead:hover{background:var(--a5)}
+.lead b{font-size:14px;font-weight:600}
+.lead span{font-size:12px;color:var(--ink-2)}
 
 .tri{
   position:relative;background:var(--card);border:1px solid var(--rule);
@@ -485,9 +497,6 @@ body.selecting .fab{display:none}
 .verdict .btn{height:var(--tap);font-size:14px}
 .verdict .btn.keep{border-color:var(--rule)}
 .verdict .btn.move{background:var(--a9);border-color:var(--a9);color:#fff}
-.rest{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
-.rest .pick{font-size:12px}
-
 /* Fill-in mode. Each blank field is a labelled block; nothing that is already
    filled is drawn at all, which is the entire point of the screen. */
 .gap{display:flex;flex-direction:column;gap:7px}
@@ -498,8 +507,6 @@ body.selecting .fab{display:none}
   border:1px solid var(--rule-2);background:var(--sunk);padding:0}
 .shots .shot img{width:100%;height:100%;object-fit:cover;display:block}
 .shots .shot.on{border-color:var(--a9);box-shadow:0 0 0 2px var(--a9)}
-.solo-foot{display:flex;gap:10px}
-.solo-foot .btn{flex:1;height:var(--tap)}
 
 /* ── panels ─────────────────────────────────────────────────────────── */
 .panel{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
@@ -754,7 +761,7 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
     </div>
     <button class="ico" data-act="filter" title="Filters" aria-label="Filters"><svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg></button>
     <button class="ico" data-act="pick" title="Select several" aria-label="Select several"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V5h14v14zm-9.5-3.5-3-3L7.9 11l1.6 1.6L15.1 7l1.4 1.4-7 7z"/></svg></button>
-    <button class="ico" data-view="solo" title="Go through one at a time" aria-label="Go through one at a time"><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></button>
+    <button class="ico" data-view="solo" title="Review" aria-label="Review one at a time"><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></button>
     <button class="ico" data-view="stats" title="Statistics" aria-label="Statistics"><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></button>
     <button class="ico" data-act="new" title="Add a series" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
   </div>
@@ -937,7 +944,7 @@ const S = {
   type:'', pub:'', setting:'', genre:'', seen:'', sort:'updated', open:null,
   // Select mode. `picked` holds ids and not rows, because a bulk write
   // replaces the rows underneath it and a held object would be the old one.
-  picking:false, picked:new Set(), wordMode:'add',
+  picking:false, picked:new Set(), anchor:null, wordMode:'add',
   // The one-at-a-time screen, or null. { mode, queue:[id…], at, pick }
   solo:null,
 };
@@ -1061,10 +1068,9 @@ function statsOf(list){
       .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   };
 
-  let units = 0, counted = 0, done = 0, rated = 0, sum = 0, reviewed = 0;
+  let units = 0, counted = 0, done = 0, rated = 0, sum = 0;
   const grades = new Map();
   for (const x of list){
-    if (x.checked) reviewed++;
     // A film is watched or it is not; counting each as one chapter would put a
     // number in the tally that means something else. Same rule the SQL had.
     if (x.progress === 'once'){ if (x.chapter) done++; }
@@ -1077,7 +1083,7 @@ function statsOf(list){
   }
   const m = S.data.meta;
   return {
-    total: list.length, units, done, rated, reviewed,
+    total: list.length, units, done, rated,
     avg: rated ? Math.round(100 * sum / rated) / 100 : null,
     // Over the titles that actually count chapters and have a number — not
     // over the shelf. Dividing by everything would mix in films, which have no
@@ -1202,8 +1208,16 @@ function renderPortal(){
 
 function renderShelf(){
   const list = shown();
+  // The way into the review queue, above the grid, saying how many are in it.
+  // It was an unlabelled square in a row of five other unlabelled squares,
+  // which is a feature nobody finds. It is not drawn once the shelf is clear.
+  const todo = S.picking ? [] : list.filter(x => !x.checked);
+  const lead = todo.length ? `<button class="lead" data-view="solo">
+      <b>Review one at a time</b>
+      <span>${todo.length} on this shelf you have not been through</span>
+    </button>` : '';
   $('#main').innerHTML = list.length
-    ? `<div class="grid">${list.map(card).join('')}</div>`
+    ? lead + `<div class="grid">${list.map(card).join('')}</div>`
     : `<div class="empty">Nothing on this shelf.</div>`;
 }
 
@@ -1289,7 +1303,6 @@ function renderStats(st){
         <div class="fig"><b>${st.meanCh ?? 'None'}</b>
           <span>mean ${esc((TALLY_WORD[S.kind] || 'units').replace(/s$/, ''))}</span></div>
         <div class="fig"><b>${st.avg ?? 'None'}</b><span>mean rating</span></div>
-        <div class="fig"><b>${st.reviewed}</b><span>reviewed</span></div>
       </div>
     </div>
     ${S.shelf === 'All' ? slab('By shelf', st.byStatus, 'tone') : ''}
@@ -1340,14 +1353,38 @@ function setPicking(on){
   render();
 }
 
-function togglePick(id){
+/* Modifiers, behaving the way they do in every file list there is.
+
+   Shift extends from the last card touched to this one, over the grid *as
+   displayed* — so it follows the sort and the filters rather than id order,
+   which is the only reading of "everything between these two" that matches
+   what he can see. Ctrl and Cmd toggle one without disturbing the rest, and a
+   plain tap does the same, because a phone has no modifier key and select mode
+   has to work with a thumb.
+
+   A range redraws the grid once. A single toggle deliberately does not: Dropped
+   is 672 cards, and rebuilding all of them to tick one is a wasted frame and a
+   scroll position thrown away on every tap — which on a shelf you are working
+   down is the difference between the mode being usable and being a trap. */
+function togglePick(id, ev){
   id = Number(id);
+  const order = shown().map(x => x.id);
+
+  if (ev && ev.shiftKey && S.anchor !== null && order.includes(S.anchor)){
+    const a = order.indexOf(S.anchor), b = order.indexOf(id);
+    const [lo, hi] = a < b ? [a, b] : [b, a];
+    // Extending only ever adds. Shift-clicking back over a range you have
+    // already taken should not un-take it — that is a different gesture.
+    for (const x of order.slice(lo, hi + 1)) S.picked.add(x);
+    S.anchor = id;
+    return render();
+  }
+
   const on = !S.picked.has(id);
   if (on) S.picked.add(id); else S.picked.delete(id);
-  // Deliberately not render(). Dropped is 672 cards; rebuilding every one of
-  // them to tick one is a wasted frame and, worse, a scroll position thrown
-  // away on every single tap — which on a shelf you are working down is the
-  // difference between select mode being usable and being a trap.
+  // The anchor is wherever he last said yes. Clearing it on a deselect keeps a
+  // later shift-click from extending out of a card that is no longer chosen.
+  S.anchor = on ? id : null;
   const book = document.querySelector(`#main [data-tick="${id}"]`)?.closest('.book');
   if (book){
     book.classList.toggle('picked', on);
@@ -1460,16 +1497,15 @@ const GAPS = [
 ];
 const gapsOf = x => GAPS.filter(([, blank]) => blank(x)).map(([f]) => f);
 
-function enterSolo(mode){
-  const want = mode || (S.solo && S.solo.mode) || 'file';
+function enterSolo(){
   S.picking = false; S.picked.clear();
   closeSheet();
-  // Already-reviewed rows are held back, which is the entire purpose of the
-  // mark: the counter goes down and stays down. Unless he has asked for them
-  // by name in the drawer, in which case the filter is the instruction.
-  const base = shown().filter(x => S.seen ? true : !x.checked);
-  const pool = want === 'fill' ? base.filter(x => gapsOf(x).length) : base;
-  S.solo = { mode: want, at: 0, queue: pool.map(x => x.id), cover: null };
+  // Everything on the shelf he has not been through. Already-reviewed rows are
+  // held back, which is the entire purpose of the mark: the counter goes down
+  // and stays down. Unless he has asked for them by name in the drawer, in
+  // which case the filter is the instruction.
+  const pool = shown().filter(x => S.seen ? true : !x.checked);
+  S.solo = { at: 0, queue: pool.map(x => x.id), cover: null };
   S.view = 'solo';
   scrollTo({ top: 0 });
   render();
@@ -1482,29 +1518,42 @@ const soloNow = () => S.solo && byId(S.solo.queue[S.solo.at]);
 const promoteTo = () => S.shelf === 'Hold' ? 'Current'
                       : S.shelf === 'Current' ? 'Finished' : 'Hold';
 
+/* One card, one pass, two buttons. There were two modes here and a mode
+   switch to pick between them, which was one screen too clever: "re-file" and
+   "fill in" are not two jobs, they are the same card being looked at. So the
+   card shows the series, shows whatever it is missing so it can be filled in
+   on the spot, and the two buttons both commit and advance.
+
+   No Skip. A queue you can decline to answer is a queue that never shortens,
+   and "leave it where it is" is already the answer for anything he does not
+   want to move — it is a decision, and it records that he made one.
+
+   Two buttons and no more. The other three shelves were a row of pills under
+   the verdict, offered because the code could; in practice the question on a
+   Dropped shelf is Dropped or Hold, and the other three were noise under it.
+   Anything that really belongs in Finished can be opened on the shelf. */
 function renderSolo(){
   const q = S.solo;
   const s = soloNow();
-  const head = `<div class="solo-head">
-      <div class="modes">
-        <button class="mode" data-solo="file" aria-pressed="${q.mode === 'file'}">Re-file</button>
-        <button class="mode" data-solo="fill" aria-pressed="${q.mode === 'fill'}">Fill in</button>
-      </div>
-      <span class="count">${s ? `${q.at + 1} of ${q.queue.length}` : `${q.queue.length}`}</span>
-    </div>`;
+  const left = s ? (s.status || 'place') : '';
+  const right = promoteTo();
   if (!s){
-    $('#main').innerHTML = `<div class="solo">${head}
+    $('#main').innerHTML = `<div class="solo">
+      <div class="solo-head"><h2 class="solo-h">Review</h2>
+        <span class="count">${q.queue.length ? 'done' : 'nothing waiting'}</span></div>
       <div class="empty">${q.queue.length
-        ? 'That is the last of them.'
-        : q.mode === 'fill'
-          ? 'Nothing on this shelf is missing anything.'
-          : 'Nothing left to review on this shelf.'}</div></div>`;
+        ? `That is all ${q.queue.length} of them.`
+        : 'Nothing left to review on this shelf.'}</div></div>`;
     return;
   }
-  $('#main').innerHTML = `<div class="solo">${head}
+  $('#main').innerHTML = `<div class="solo">
+    <div class="solo-head">
+      <h2 class="solo-h">Review</h2>
+      <span class="count">${q.at + 1} of ${q.queue.length}</span>
+    </div>
     <div class="tri" id="tri">
-      <div class="tri-say l">${esc(q.mode === 'file' ? 'Keep' : 'Skip')}</div>
-      <div class="tri-say r">${esc(q.mode === 'file' ? promoteTo() : 'Save')}</div>
+      <div class="tri-say l">${esc(left)}</div>
+      <div class="tri-say r">${esc(right)}</div>
       <div class="tri-top">
         <div class="tri-art">${s.coverId
           ? `<img src="/cover/${s.coverId}" alt="">`
@@ -1517,24 +1566,15 @@ function renderSolo(){
             .map(w => `<span>${esc(w)}</span>`).join('') || '<span>no words yet</span>'}</div>
         </div>
       </div>
-      ${q.mode === 'file' ? '' : soloGaps(s)}
+      ${soloGaps(s)}
     </div>
-    ${q.mode === 'file' ? `
-      <div class="verdict">
-        <button class="btn keep" data-file="">Leave in ${esc(s.status || 'place')}</button>
-        <button class="btn move" data-file="${esc(promoteTo())}">Move to ${esc(promoteTo())}</button>
-      </div>
-      <div class="rest">${S.data.meta.status
-        .filter(v => v !== s.status && v !== promoteTo())
-        .map(v => `<button class="pick" data-file="${esc(v)}">${esc(v)}</button>`).join('')}</div>
-      <div class="solo-foot"><button class="btn" data-solo-skip>Skip, decide later</button></div>`
-    : `<div class="solo-foot">
-        <button class="btn" data-solo-skip>Skip</button>
-        <button class="btn primary" data-solo-save>Save and next</button>
-      </div>`}
+    <div class="verdict">
+      <button class="btn keep" data-file="">Leave in ${esc(left)}</button>
+      <button class="btn move" data-file="${esc(right)}">Move to ${esc(right)}</button>
+    </div>
   </div>`;
   bindDrag();
-  if (q.mode === 'fill') loadShots(s);
+  loadShots(s);
 }
 
 const soloProgress = s => s.progress === 'once'
@@ -1612,25 +1652,16 @@ function soloStep(by){
   render();
 }
 
-/* A verdict. '' means leave the shelf alone and only record that he looked,
-   which is a real answer and the commonest one. */
+/* The only way off a card. `status` is '' for "leave it where it is", which is
+   a real answer and the commonest one — it still records that he looked.
+   Whatever he filled in on the card goes in the same write, so a cover and a
+   verdict are one request and not two. */
 async function soloFile(status){
-  const s = soloNow();
-  if (!s) return;
-  const fields = { reviewed: true };
-  if (status && status !== s.status) fields.status = status;
-  try {
-    const r = await api('/api/update', { id: s.id, fields });
-    patch([r.series]);
-    soloStep(1);
-  } catch (e) { toast(e.message); }
-}
-
-async function soloSave(){
   const s = soloNow();
   if (!s) return;
   const gaps = gapsOf(s);
   const fields = { reviewed: true };
+  if (status && status !== s.status) fields.status = status;
   if (S.solo.cover) fields.cover = S.solo.cover;
   const ch = $('#s-chapter');
   if (ch && ch.value.trim() !== '') fields.chapter = Number(ch.value);
@@ -1658,7 +1689,7 @@ async function soloSave(){
    still scroll to reach the controls under a tall card. */
 function bindDrag(){
   const el = $('#tri');
-  if (!el || S.solo.mode !== 'file') return;
+  if (!el) return;
   let x0 = 0, y0 = 0, dx = 0, on = false;
   const say = (d) => {
     el.querySelector('.tri-say.l').style.opacity = d < -20 ? Math.min(1, -d / 90) : 0;
@@ -2046,7 +2077,18 @@ document.addEventListener('click', async ev => {
   if (bumpBtn){ ev.stopPropagation(); return bump(bumpBtn.dataset.bump); }
 
   const opener = hit('[data-open]');
-  if (opener && opener.dataset.open) return openSheet(opener.dataset.open);
+  if (opener && opener.dataset.open){
+    // Ctrl, Cmd or Shift on a card picks it instead of opening it, turning
+    // select mode on if it was not already. Holding a modifier and clicking is
+    // how selecting starts everywhere else, so it should not first require
+    // finding a button — and a sheet opening over a selection you were trying
+    // to start is the wrong answer to an unambiguous gesture.
+    if (ev.ctrlKey || ev.metaKey || ev.shiftKey){
+      if (!S.picking){ S.picking = true; S.solo = null; closeSheet(); render(); }
+      return togglePick(opener.dataset.open, ev);
+    }
+    return openSheet(opener.dataset.open);
+  }
 
   // The tab row is the scope for whichever view is open, which is what makes
   // "stats for this shelf" a thing you can ask for at all. From the card
@@ -2060,16 +2102,10 @@ document.addEventListener('click', async ev => {
   }
 
   const tick = hit('[data-tick]');
-  if (tick) return togglePick(tick.dataset.tick);
-
-  const mode = hit('[data-solo]');
-  if (mode) return enterSolo(mode.dataset.solo);
+  if (tick) return togglePick(tick.dataset.tick, ev);
 
   const verdict = hit('[data-file]');
   if (verdict) return soloFile(verdict.dataset.file);
-
-  if (hit('[data-solo-skip]')) return soloStep(1);
-  if (hit('[data-solo-save]')) return soloSave();
 
   const art = hit('[data-shot]');
   if (art){
@@ -2206,7 +2242,7 @@ document.addEventListener('keydown', ev => {
     else hideToast();
   }
   // Left and right do what the swipe does, for the desk.
-  if (S.view === 'solo' && S.solo && S.solo.mode === 'file' &&
+  if (S.view === 'solo' && S.solo &&
       !/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)){
     if (ev.key === 'ArrowLeft'){ ev.preventDefault(); return soloFile(''); }
     if (ev.key === 'ArrowRight'){ ev.preventDefault(); return soloFile(promoteTo()); }

@@ -348,10 +348,26 @@ ticked: shelf, publication status, add or remove a word, mark or unmark
 reviewed. It composes with the filter drawer, so *filter to Hold* → **All
 shown** → one menu is four taps for two hundred rows.
 
+**Modifiers behave the way they do in every file list.** Ctrl or Cmd on a card
+toggles it; Shift extends from the last card touched to this one. The range is
+over the grid *as displayed*, so it follows the sort and the filters rather than
+id order — the only reading of "everything between these two" that matches what
+is on screen. Extending only ever adds: shift-clicking back over a range you
+have already taken is not a way to un-take it.
+
+A plain tap toggles too, because a phone has no modifier key and select mode has
+to work with a thumb.
+
+A modified click on an **ordinary** card picks it and turns select mode on,
+rather than opening the sheet. Holding a modifier and clicking is how selecting
+starts everywhere else, so it should not first require finding a button — and a
+sheet opening over a selection you were trying to start is the wrong answer to
+an unambiguous gesture.
+
 Ticking does not re-render the grid. Rebuilding 672 cards to tick one is a
 wasted frame and a scroll position thrown away on every tap, which on a shelf
 you are working down is the difference between the mode being usable and being
-a trap.
+a trap. A shift-range does redraw once, because it changes many cards at once.
 
 Undo restores **every** field the action wrote, per row, grouped by the state
 each row came from. Moving a shelf also marks the rows reviewed; an Undo that
@@ -368,19 +384,31 @@ in the one place that knows how.
 
 ### One at a time, for when you have to look
 
-One series, nothing else on screen, and a decision. Two modes:
+One series, nothing else on screen, **two buttons**. *Leave in Dropped* and
+*Move to Hold*, or a drag, or ← and → at a desk.
 
-**Re-file** asks a question that has an answer — which shelf does this belong
-on — and takes it as a drag, a button or an arrow key. Left leaves it where it
-is, right promotes it (Dropped → Hold, Hold → Current), and the other shelves
-sit underneath for when neither is right. Every verdict marks the row reviewed,
-including *leave it*, which is the commonest answer and still a decision.
+The way in is a labelled bar above the grid saying how many are waiting. It was
+an unlabelled square in a row of five other unlabelled squares in the toolbar,
+which is a feature nobody finds — and didn't. The bar is not drawn once the
+shelf is clear.
 
-**Fill in** does not, because a cover is not a yes or a no and no amount of
-swiping produces one. Same card, but it draws only the fields that are blank —
-a field you have already answered is not a question — and Save writes them all
-in one call. The cover row runs the search by itself as the card comes up, so
-the art is waiting rather than a button you press.
+The card shows the series and, underneath it, **whatever that series is
+missing**, so a cover or a rating or a publication status can be filled in on
+the spot. Whichever button you press commits the blanks and the verdict in one
+write. A field you have already answered is not a question and is not drawn.
+
+This was briefly two modes with a switch between them — *re-file* and *fill in*
+— which was one screen too clever. They are not two jobs, they are the same card
+being looked at.
+
+**There is no Skip.** A queue you can decline to answer is a queue that never
+shortens, and *leave it where it is* is already the answer for anything you do
+not want to move: it is a decision, and it records that you made one.
+
+**Two buttons and no more.** The other three shelves were a row of pills under
+the verdict, offered because the code could. On a Dropped shelf the question is
+Dropped or Hold; the rest was noise under it, and anything that really belongs
+in Finished can be opened on the shelf.
 
 The queue is a snapshot taken on entry, built from whatever the shelf is
 currently showing, filters included, and then it stops listening. A queue that
@@ -389,6 +417,7 @@ every card. Reviewed rows are held back, which is the whole purpose of the mark:
 the counter goes down and stays down.
 
 Cover art is fetched for the card on screen and **one** card ahead, no further.
+
 `/api/images` fans out to six live catalogues per call; walking 608 blanks would
 be 608 of those, and running them in bulk is how you get DuckDuckGo to stop
 answering. A result that comes back empty is not cached either — a catalogue
