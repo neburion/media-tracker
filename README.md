@@ -382,24 +382,58 @@ what that series already has and then handed to `update_series()` as an
 ordinary axis write, so the per-tracker vocabulary and the reindex happen once,
 in the one place that knows how.
 
-### One at a time, for when you have to look
+### Walking the sheet, which is the main way
 
-One series, nothing else on screen, **two buttons**. *Leave in Dropped* and
-*Move to Hold*, or a drag, or ← and → at a desk.
+The editor that opens when you click an entry now knows it is one of a run.
+It gains a pager — `‹ 12 of 670 ›` — and Save becomes **Save and next**.
 
-The way in is a labelled bar above the grid saying how many are waiting. It was
-an unlabelled square in a row of five other unlabelled squares in the toolbar,
-which is a feature nobody finds — and didn't. The bar is not drawn once the
-shelf is clear.
+That is the whole feature: the shelf, one entry at a time, with every field
+editable, because most of what needs fixing on 989 imported rows is not a
+verdict. Closing the sheet after each one and hunting the next cover in a grid
+that has just reordered itself is what made going through them impossible.
+
+The run is **the selection if there is one, the shelf as displayed otherwise** —
+filters, search and sort included, in display order, so *next* means the next
+one along the grid you were looking at rather than the next id. Two ways in:
+
+- **Edit each one** on the banner above the grid, starting from the top.
+- **Edit one by one** in the select-mode bar, over whatever is ticked. Select
+  mode closes on the way: the run is a snapshot, so the ticks have done their
+  job and a grid still covered in them behind the sheet is noise.
+
+The arrows **save on the way past**, and so does Alt+← / Alt+→ — Alt rather than
+bare arrows, because half this sheet is number fields where an arrow already
+means something. Moving on without committing what you just typed is how a pass
+over nine hundred rows quietly loses half of them.
+
+The run is a snapshot for the same reason the queue below is, and it is passed
+back in rather than rebuilt after each save: the row you just edited may have
+left the shelf it was built from, and re-deriving would shuffle everything
+under you mid-pass.
+
+Saving inside a run marks the row reviewed. Opening something and saving it *is*
+having been through it, and it is what makes the count on the banner fall.
+
+Each step is one `POST /api/update` and a local splice of the returned row. It
+used to re-fetch the whole library after every save, which is 200 KB to learn
+that one row changed — tolerable once, not 670 times.
+
+### A quick pass, for when the only question is the shelf
+
+One series, nothing else on screen, **two buttons**: *Leave in Dropped* and
+*Move to Hold*, or a drag, or ← and → at a desk. This is the other half, for a
+shelf of 672 where the answer is usually obvious from the cover and opening the
+editor for it would be four taps too many.
+
+Both are reached from a labelled bar above the grid saying how many are waiting.
+They were unlabelled squares in a row of five other unlabelled squares in the
+toolbar, which is a feature nobody finds — and didn't. The bar is not drawn once
+the shelf is clear.
 
 The card shows the series and, underneath it, **whatever that series is
 missing**, so a cover or a rating or a publication status can be filled in on
 the spot. Whichever button you press commits the blanks and the verdict in one
 write. A field you have already answered is not a question and is not drawn.
-
-This was briefly two modes with a switch between them — *re-file* and *fill in*
-— which was one screen too clever. They are not two jobs, they are the same card
-being looked at.
 
 **There is no Skip.** A queue you can decline to answer is a queue that never
 shortens, and *leave it where it is* is already the answer for anything you do
