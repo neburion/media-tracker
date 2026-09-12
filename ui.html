@@ -325,6 +325,8 @@ select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
 /* ── shelf ──────────────────────────────────────────────────────────── */
 main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
   max(14px,env(safe-area-inset-left));max-width:1500px;margin:0 auto}
+body.selecting main{padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+body.selecting .fab{display:none}
 /* clear the dock, plus the home indicator on gesture-nav phones */
 @media (max-width:640px){
   main{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
@@ -390,6 +392,114 @@ main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
 .sub span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .empty{padding:60px 20px;text-align:center;color:var(--ink-3);font-size:14px}
+
+/* ── select mode ────────────────────────────────────────────────────────
+   Half of Hold is already sorted and he can see which half at a glance. That
+   is a judgement no query makes, and 153 separate saves is not a way to record
+   it — so the plate becomes a checkbox and one bar at the bottom applies one
+   decision to everything ticked. */
+.book.picked .plate{border-color:var(--a9);box-shadow:0 0 0 2px var(--a9)}
+.book.picked .plate img{opacity:.55}
+/* The empty circle is drawn on every card in select mode so the affordance is
+   visible before the first tap, not after it. */
+.tick{position:absolute;top:8px;left:8px;width:22px;height:22px;
+  border-radius:var(--r-dot);border:2px solid rgba(255,255,255,.75);
+  background:rgba(0,0,0,.45);backdrop-filter:blur(3px)}
+.book.picked .tick{background:var(--a9);border-color:var(--a9)}
+.book.picked .tick::after{content:"";position:absolute;left:6px;top:2px;
+  width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;
+  transform:rotate(45deg)}
+/* Reviewed, on the shelf. Bottom-left so it clears the rating and the stripe.
+   Invisible on day one by construction — nothing is reviewed yet — and it
+   fills in as he works, which is the only progress bar that matters here. */
+.seen{position:absolute;top:8px;left:8px;width:18px;height:18px;
+  display:grid;place-items:center;border-radius:var(--r-dot);
+  background:rgba(0,0,0,.6);color:var(--current);font-size:11px;
+  backdrop-filter:blur(3px)}
+
+.bulk{
+  position:fixed;left:0;right:0;bottom:0;z-index:47;display:none;
+  flex-wrap:wrap;gap:8px;align-items:center;
+  background:var(--card);border-top:1px solid var(--rule);
+  padding:10px max(14px,env(safe-area-inset-right))
+          calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+}
+.bulk.open{display:flex}
+.bulk b{font-family:Mono,monospace;font-size:13px;font-weight:400;
+  color:var(--ink);margin-right:2px;white-space:nowrap}
+.bulk select{width:auto;min-width:112px;flex:0 1 auto}
+.bulk .sp{flex:1 1 auto}
+@media (max-width:640px){
+  .bulk{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+  .bulk .sp{display:none}
+  .bulk select,.bulk .chip{flex:1 1 auto;min-width:0}
+}
+
+/* ── one at a time ──────────────────────────────────────────────────────
+   The shelf is a grid because comparing is what a shelf is for. This is the
+   opposite screen: one series, nothing else on it, and a decision. It exists
+   because 672 rows in Dropped is not a thing you review by opening 672 sheets,
+   and because the answer to "should this still be dropped" is usually obvious
+   within a second of seeing the cover — which the grid, showing thirty at
+   once, gives you no way to say. */
+.solo{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.solo-head{display:flex;align-items:center;gap:8px}
+.solo-head .count{margin-left:auto;font-family:Mono,monospace;font-size:12px;
+  color:var(--ink-3);white-space:nowrap}
+.modes{display:flex;gap:6px}
+.mode{height:32px;padding:0 13px;border:1px solid var(--rule);background:var(--paper);
+  color:var(--ink-3);border-radius:var(--r-md);font-size:12.5px}
+.mode[aria-pressed=true]{background:var(--a3);border-color:var(--a7);color:var(--a11)}
+
+.tri{
+  position:relative;background:var(--card);border:1px solid var(--rule);
+  border-radius:var(--r-xl);padding:18px;display:flex;flex-direction:column;
+  gap:14px;touch-action:pan-y;user-select:none;
+}
+/* Follows the finger. No transition while dragging or it lags behind by a
+   frame; the class goes on only for the spring back and the fly out. */
+.tri.glide{transition:transform .22s ease,opacity .22s ease}
+.tri.gone{opacity:0}
+.tri-art{width:150px;aspect-ratio:2/3;flex:none;border-radius:var(--r-lg);
+  overflow:hidden;background:var(--sunk);border:1px solid var(--rule-2);
+  box-shadow:var(--shadow)}
+.tri-art img{width:100%;height:100%;object-fit:cover;display:block}
+.tri-top{display:flex;gap:16px;align-items:flex-start}
+.tri-id{min-width:0;display:flex;flex-direction:column;gap:7px;padding-top:2px}
+.tri-id h2{font-family:Lit,Georgia,serif;font-size:19px;line-height:1.25;
+  font-weight:600;margin:0;letter-spacing:-.01em}
+.tri-id .sub{margin:0}
+.tri-words{display:flex;flex-wrap:wrap;gap:5px}
+.tri-words span{font-size:11px;padding:2px 7px;border-radius:var(--r-sm);
+  background:var(--sunk);color:var(--ink-2)}
+/* The verdict, printed across the cover as the card is dragged. A direction
+   is not self-evident and guessing wrong costs a row. */
+.tri-say{position:absolute;top:22px;font-family:Pub,system-ui,sans-serif;
+  font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  padding:6px 12px;border-radius:var(--r-md);opacity:0;pointer-events:none;
+  border:2px solid currentColor}
+.tri-say.l{left:22px;color:var(--dropped);transform:rotate(-7deg)}
+.tri-say.r{right:22px;color:var(--current);transform:rotate(7deg)}
+
+.verdict{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.verdict .btn{height:var(--tap);font-size:14px}
+.verdict .btn.keep{border-color:var(--rule)}
+.verdict .btn.move{background:var(--a9);border-color:var(--a9);color:#fff}
+.rest{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.rest .pick{font-size:12px}
+
+/* Fill-in mode. Each blank field is a labelled block; nothing that is already
+   filled is drawn at all, which is the entire point of the screen. */
+.gap{display:flex;flex-direction:column;gap:7px}
+.gap>.lbl{padding-left:2px}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));
+  gap:8px;max-height:250px;overflow-y:auto}
+.shots .shot{aspect-ratio:2/3;border-radius:var(--r-md);overflow:hidden;
+  border:1px solid var(--rule-2);background:var(--sunk);padding:0}
+.shots .shot img{width:100%;height:100%;object-fit:cover;display:block}
+.shots .shot.on{border-color:var(--a9);box-shadow:0 0 0 2px var(--a9)}
+.solo-foot{display:flex;gap:10px}
+.solo-foot .btn{flex:1;height:var(--tap)}
 
 /* ── panels ─────────────────────────────────────────────────────────── */
 .panel{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
@@ -643,6 +753,8 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
       <span><b id="t-ch">0</b> <i id="t-ch-word">chapters</i></span>
     </div>
     <button class="ico" data-act="filter" title="Filters" aria-label="Filters"><svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg></button>
+    <button class="ico" data-act="pick" title="Select several" aria-label="Select several"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V5h14v14zm-9.5-3.5-3-3L7.9 11l1.6 1.6L15.1 7l1.4 1.4-7 7z"/></svg></button>
+    <button class="ico" data-view="solo" title="Go through one at a time" aria-label="Go through one at a time"><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></button>
     <button class="ico" data-view="stats" title="Statistics" aria-label="Statistics"><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></button>
     <button class="ico" data-act="new" title="Add a series" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
   </div>
@@ -669,6 +781,12 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
       <select id="f-type" title="What kind of thing it is"><option value="">Any</option></select></div>
     <div class="filt"><label class="lbl" for="f-pub">Publication status</label>
       <select id="f-pub" title="Whether the author is still writing it"><option value="">Any</option></select></div>
+    <div class="filt"><label class="lbl" for="f-seen">Reviewed</label>
+      <select id="f-seen" title="Whether you have been through it yourself">
+        <option value="">Any</option>
+        <option value="no">Not yet</option>
+        <option value="yes">Reviewed</option>
+      </select></div>
     <div class="filt"><label class="lbl" for="f-setting">Setting</label>
       <select id="f-setting" title="Where it takes place"><option value="">Any</option></select></div>
     <div class="filt"><label class="lbl" for="f-genre">Genre</label>
@@ -683,6 +801,7 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
 
 <nav class="dock" id="dock" aria-label="Views" hidden>
   <button data-view="shelf"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></i><span>Shelf</span></button>
+  <button data-view="solo"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></i><span>Review</span></button>
   <button data-view="stats"><i><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></i><span>Stats</span></button>
   <button data-act="home"><i><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></i><span>Trackers</span></button>
 </nav>
@@ -691,6 +810,22 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
 
 <div class="veil" id="veil"></div>
 <aside class="sheet" id="sheet" aria-hidden="true"></aside>
+
+<!-- Select mode's one bar. Every control on it writes the same answer to
+     everything ticked, which is the only reason to have ticked them together. -->
+<div class="bulk" id="bulk">
+  <b id="bulk-n">0 selected</b>
+  <button class="chip" id="bulk-all">All shown</button>
+  <button class="chip" id="bulk-none">Clear</button>
+  <span class="sp"></span>
+  <select id="bulk-status"><option value="">Move to shelf…</option></select>
+  <select id="bulk-pub"><option value="">Publication…</option></select>
+  <button class="chip" id="bulk-mode">Add</button>
+  <select id="bulk-word"><option value="">Add a word…</option></select>
+  <button class="chip" id="bulk-seen">Mark reviewed</button>
+  <button class="chip" id="bulk-unseen">Unmark</button>
+  <button class="chip" id="bulk-done">Done</button>
+</div>
 
 <div id="toast"><span id="toast-msg"></span><button id="toast-do" hidden></button></div>
 
@@ -799,7 +934,12 @@ async function api(path, body){
    and inside one there is never a question about which tracker he is in. */
 const S = {
   data:null, kind:null, view:'shelf', shelf:'Current', q:'',
-  type:'', pub:'', setting:'', genre:'', sort:'updated', open:null,
+  type:'', pub:'', setting:'', genre:'', seen:'', sort:'updated', open:null,
+  // Select mode. `picked` holds ids and not rows, because a bulk write
+  // replaces the rows underneath it and a held object would be the old one.
+  picking:false, picked:new Set(), wordMode:'add',
+  // The one-at-a-time screen, or null. { mode, queue:[id…], at, pick }
+  solo:null,
 };
 const AXES = ['setting','genre'];
 const AXIS_LABEL = { setting:'Setting', genre:'Genre' };
@@ -832,12 +972,19 @@ const kindFromHash = () => (S.data ? S.data.meta.kind : [])
 function enter(kind){
   S.kind = kind;
   S.view = 'shelf';
+  // Both are about a tracker's shelf and neither survives leaving one: a
+  // selection of Reading ids means nothing standing in Watching, and a queue
+  // of them means less.
+  S.picking = false; S.picked.clear(); S.solo = null;
   S.q = ''; $('#q').value = ''; $('#q-clear').hidden = true;
   clearFilters();
   if (kind){
-    // Open on Current unless nothing is, which is most of Watching.
-    const pool = S.data.series.filter(s => s.kind === kind);
-    S.shelf = pool.some(s => s.status === 'Current') ? 'Current' : 'All';
+    // Current, whether or not anything is on it. It used to fall back to All
+    // when the shelf was empty, which on a Reading shelf of 974 rows with not
+    // one of them Current meant every session opened on all 974 — the pile,
+    // not the thing he is actually reading. An empty Current is the honest
+    // answer to "what am I in the middle of", and it is a shelf he can fill.
+    S.shelf = 'Current';
     fillPickers();
   }
   if (S.open) closeSheet();
@@ -868,6 +1015,7 @@ function fillPickers(){
   };
   opt($('#f-type'), typeNames(S.kind), 'Any');
   opt($('#f-pub'), m.pub, 'Any');
+  $('#f-seen').value = S.seen;
   // One dropdown per field, each holding only its own words. The old single
   // "Any tag" menu was 59 items long and mixed both together.
   for (const axis of AXES)
@@ -883,12 +1031,86 @@ function fillPickers(){
     S.kind === 'Watching' ? 'Add something to watch' : 'Add something to read';
 }
 
+/* ══ the numbers ══════════════════════════════════════════════════════
+   These used to arrive with the payload, computed in SQL, one block per
+   tracker. They are worked out here now for one reason: the question is about
+   a *shelf*. "Mean rating on Dropped", "mean chapter on Hold" — a server can
+   only answer that with a round trip per tab, and the whole library is already
+   sitting in this array. Over the real 974 Reading rows the block below takes
+   0.15 ms, measured, which is less than serialising the answer would cost.
+
+   `app.py --stats` keeps its own SQL version. That is not a duplicate: it runs
+   against a database nobody has opened in a browser. */
+function statsOf(list){
+  // Vocabulary order, not frequency: a menu whose rows move every time you
+  // file something is a menu you have to read every time. Same rule the
+  // pickers follow. Values nothing on this shelf has are left out entirely.
+  const tally = (key, vocab) => {
+    const n = new Map();
+    for (const x of list) n.set(x[key] || '', (n.get(x[key] || '') || 0) + 1);
+    const out = vocab.filter(v => n.get(v)).map(v => ({ name:v, count:n.get(v) }));
+    if (n.get('')) out.push({ name:'None', count:n.get('') });
+    return out;
+  };
+  // Setting and Genre by count instead, because there is no presentation order
+  // worth honouring in a bar chart of how much of the shelf is Fantasy.
+  const words = axis => {
+    const n = new Map();
+    for (const x of list) for (const w of x[axis]) n.set(w, (n.get(w) || 0) + 1);
+    return [...n].map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  };
+
+  let units = 0, counted = 0, done = 0, rated = 0, sum = 0, reviewed = 0;
+  const grades = new Map();
+  for (const x of list){
+    if (x.checked) reviewed++;
+    // A film is watched or it is not; counting each as one chapter would put a
+    // number in the tally that means something else. Same rule the SQL had.
+    if (x.progress === 'once'){ if (x.chapter) done++; }
+    else if (x.chapter !== null){ units += x.chapter; counted++; }
+    if (x.rating !== null){
+      rated++; sum += x.rating;
+      const b = Math.round(x.rating);
+      grades.set(b, (grades.get(b) || 0) + 1);
+    }
+  }
+  const m = S.data.meta;
+  return {
+    total: list.length, units, done, rated, reviewed,
+    avg: rated ? Math.round(100 * sum / rated) / 100 : null,
+    // Over the titles that actually count chapters and have a number — not
+    // over the shelf. Dividing by everything would mix in films, which have no
+    // chapters, and the 84 rows where the count is simply unknown; both drag a
+    // mean toward zero while pretending to be zeroes.
+    meanCh: counted ? Math.round(10 * units / counted) / 10 : null,
+    counted,
+    byStatus: tally('status', m.status),
+    byType: tally('type', typeNames(S.kind)),
+    byPub: tally('pub', m.pub),
+    ratings: [...grades].sort((a, b) => a[0] - b[0])
+      .map(([score, count]) => ({ score, count })),
+    bySetting: words('setting'), byGenre: words('genre'),
+  };
+}
+
+/* Everything in this tracker, and everything on the shelf tab within it. The
+   filter drawer is deliberately not in either: it is cleared on the way out of
+   the shelf view, so a statistic drawn under one would be a number about a
+   selection he can no longer see. */
+const poolOf = () => S.data.series.filter(x => x.kind === S.kind);
+const shelfOf = () => S.shelf === 'All' ? poolOf()
+                                        : poolOf().filter(x => x.status === S.shelf);
+
 /* ══ selection ════════════════════════════════════════════════════════ */
 function shown(){
   let list = S.data.series.filter(s => s.kind === S.kind);
   if (S.shelf !== 'All') list = list.filter(s => s.status === S.shelf);
   if (S.type) list = list.filter(s => s.type === S.type);
   if (S.pub)  list = list.filter(s => s.pub === S.pub);
+  // Has he been through it. Not derivable from the other columns — see
+  // series.checked_at in schema.sql for why it is a column at all.
+  if (S.seen) list = list.filter(s => !!s.checked === (S.seen === 'yes'));
   // Setting and genre are ANDed: a murim regression story is one query, not a
   // choice between two of the things you know about it.
   for (const axis of AXES)
@@ -918,19 +1140,22 @@ function render(){
   document.title = inside ? `${S.kind} · Media Tracker` : 'Media Tracker';
   if (!inside) return renderPortal();
 
-  const st = S.data.stats[S.kind] || { total:0, units:0, byStatus:[] };
+  const pool = poolOf();
+  // The header counts the tracker; the Stats view counts the shelf tab. Two
+  // different questions, which is why they are two calls rather than one
+  // number passed down.
+  const whole = statsOf(pool);
   $('#h1').textContent = S.kind;
-  $('#t-count').textContent = st.total;
-  $('#t-ch').textContent = st.units.toLocaleString();
+  $('#t-count').textContent = whole.total;
+  $('#t-ch').textContent = whole.units.toLocaleString();
   $('#t-ch-word').textContent = TALLY_WORD[S.kind] || 'units';
 
-  const pool = S.data.series.filter(x => x.kind === S.kind);
   const counts = {};
   for (const x of pool) counts[x.status] = (counts[x.status] || 0) + 1;
   $('#tabs').innerHTML = [...S.data.meta.status, 'All'].map(s => {
     const n = s === 'All' ? pool.length : (counts[s] || 0);
     return `<button class="tab" data-s="${esc(s)}" role="tab"
-      aria-selected="${S.view === 'shelf' && S.shelf === s}">${esc(s)} <em>${n}</em></button>`;
+      aria-selected="${S.shelf === s}">${esc(s)} <em>${n}</em></button>`;
   }).join('');
 
   // Header and dock carry the same data-view hooks, so one pass lights both.
@@ -943,15 +1168,22 @@ function render(){
   // that was closed. So leaving the shelf drops them, and the control that
   // opens them is not there to press.
   const onShelf = S.view === 'shelf';
-  const filtered = S.type || S.pub || S.sort !== 'updated'
+  const filtered = S.type || S.pub || S.seen || S.sort !== 'updated'
                    || AXES.some(a => S[a]);
   for (const b of document.querySelectorAll('[data-act=filter]')){
     b.hidden = !onShelf;
     b.classList.toggle('on', !!filtered);
   }
+  // Select mode is a way of acting on the grid, so it goes where the grid is.
+  for (const b of document.querySelectorAll('[data-act=pick]')){
+    b.hidden = !onShelf;
+    b.classList.toggle('on', S.picking);
+  }
   if (!onShelf) $('#drawer').classList.remove('open');
+  fillBulk();
 
-  if (S.view === 'stats') return renderStats(st);
+  if (S.view === 'solo') return renderSolo();
+  if (S.view === 'stats') return renderStats(statsOf(shelfOf()));
   renderShelf();
 }
 
@@ -959,10 +1191,10 @@ function renderPortal(){
   $('#main').innerHTML = `<div class="hall">
     <div class="mast"><b>Media Tracker</b></div>
     <div class="portal">${S.data.meta.kind.map(k => {
-    const st = S.data.stats[k] || { total:0 };
+    const n = S.data.series.filter(x => x.kind === k).length;
     return `<button class="door" data-door="${esc(k)}">
       <b>${esc(k)}</b>
-      <span>${st.total} ${st.total === 1 ? 'title' : 'titles'}</span>
+      <span>${n} ${n === 1 ? 'title' : 'titles'}</span>
     </button>`;
   }).join('')}</div>
   </div>`;
@@ -1001,18 +1233,26 @@ function card(s){
   const plus = once && s.chapter ? '' : `
         <button class="plus" data-bump="${s.id}" title="One more ${esc(bumpWord(s))}"
           aria-label="One more ${esc(bumpWord(s))} of ${esc(s.title)}">${once ? '✓' : '+'}</button>`;
+  // In select mode the whole plate is a checkbox and nothing opens. One
+  // attribute swap rather than a second card function: they are the same card,
+  // and a card that renders differently per mode is a card that drifts.
+  const act = S.picking ? `data-tick="${s.id}"` : `data-open="${s.id}"`;
+  const on = S.picking && S.picked.has(s.id);
   return `
-  <div class="book" data-s="${esc(s.status)}" style="--h:${hue(s.title)}">
-    <div class="plate" data-open="${s.id}" role="button" tabindex="0">
+  <div class="book${on ? ' picked' : ''}" data-s="${esc(s.status)}" style="--h:${hue(s.title)}">
+    <div class="plate" ${act} role="button" tabindex="0"
+         ${S.picking ? `aria-pressed="${on}"` : ''}>
       ${art}
       <div class="mark"></div>
+      ${s.checked && !S.picking ? '<div class="seen" title="Reviewed">✓</div>' : ''}
       ${s.rating !== null ? `<div class="score">${esc(fmt(s.rating))}</div>` : ''}
       <div class="foot">
-        <div class="ch">${mark}</div>${plus}
+        <div class="ch">${mark}</div>${S.picking ? '' : plus}
       </div>
+      ${S.picking ? '<div class="tick"></div>' : ''}
     </div>
     <div>
-      <div class="name" data-open="${s.id}" role="button">${esc(s.title)}</div>
+      <div class="name" ${act} role="button">${esc(s.title)}</div>
       ${sub.length ? `<div class="sub"><span>${sub.map(esc).join(' · ')}</span></div>` : ''}
     </div>
   </div>`;
@@ -1028,8 +1268,10 @@ function bars(rows, total, tone){
 }
 
 function renderStats(st){
-  // One tracker's numbers. A mean rating over nine hundred manhwa and five
-  // films was a number about no shelf in particular.
+  // One shelf's numbers, the shelf being whichever tab is selected. A mean
+  // rating over nine hundred manhwa and five films was a number about no shelf
+  // in particular; so, it turns out, was a mean over Dropped and Current at
+  // once, which is why the tab row scopes this view and not just the grid.
   const slab = (title, rows, opts) => rows.length
     ? `<div class="slab"><h2>${esc(title)}</h2>${bars(rows,
         opts === 'peak' ? Math.max(...rows.map(r => r.count), 1) : st.total,
@@ -1037,15 +1279,20 @@ function renderStats(st){
     : '';
   $('#main').innerHTML = `<div class="panel">
     <div class="slab">
+      <h2>${esc(S.shelf === 'All' ? `All of ${S.kind}` : S.shelf)}
+        <span>${st.total} of ${poolOf().length}</span></h2>
       <div class="figs">
         <div class="fig"><b>${st.total}</b><span>titles</span></div>
         <div class="fig"><b>${st.units.toLocaleString()}</b>
           <span>${esc(TALLY_WORD[S.kind] || 'units')}</span></div>
         ${st.done ? `<div class="fig"><b>${st.done}</b><span>films watched</span></div>` : ''}
+        <div class="fig"><b>${st.meanCh ?? 'None'}</b>
+          <span>mean ${esc((TALLY_WORD[S.kind] || 'units').replace(/s$/, ''))}</span></div>
         <div class="fig"><b>${st.avg ?? 'None'}</b><span>mean rating</span></div>
+        <div class="fig"><b>${st.reviewed}</b><span>reviewed</span></div>
       </div>
     </div>
-    ${slab('By shelf', st.byStatus, 'tone')}
+    ${S.shelf === 'All' ? slab('By shelf', st.byStatus, 'tone') : ''}
     ${slab('By type', st.byType)}
     ${slab('By publication status', st.byPub)}
     ${slab('Ratings given',
@@ -1065,6 +1312,386 @@ function renderStats(st){
    while tags were typed by hand and the same word could exist twice. They are
    picked from a closed list now, so the merge tool has nothing to merge and
    the cloud is two dropdowns in the filter drawer. */
+
+/* ══ pills, outside the sheet ═════════════════════════════════════════
+   The same markup the sheet builds, hoisted so the one-at-a-time screen can
+   use it too. The click handlers at the bottom of this file are delegated and
+   scope themselves with `closest('.picks')`, so two pill groups in two places
+   do not reach into each other — which is the only reason this is shareable
+   at all. Ids are prefixed `s-` there and `e-` in the sheet, because the
+   sheet's markup stays in the DOM after it closes and two `#e-setting` would
+   be one bug nobody would find. */
+const pillRow = (key, vals, cur) => vals.map(v =>
+  `<button class="pick" data-${key}="${esc(v)}" data-v="${esc(v)}"
+     aria-pressed="${v === cur}">${esc(v)}</button>`).join('');
+const wordRow = (axis, cur, kind) => (wordsOf(kind)[axis] || []).map(v =>
+  `<button class="pick" data-many="${axis}" data-v="${esc(v)}"
+     aria-pressed="${cur.includes(v)}">${esc(v)}</button>`).join('');
+
+/* ══ select mode ══════════════════════════════════════════════════════
+   Tick several, apply one decision. This is the half of the problem no queue
+   solves: over half of Hold was already sorted before this app existed, he can
+   see which half from the covers, and no column records it. Looking at thirty
+   at once and ticking eight is the gesture that matches knowing. */
+function setPicking(on){
+  S.picking = on;
+  S.picked.clear();
+  if (on){ S.view = 'shelf'; S.solo = null; closeSheet(); }
+  render();
+}
+
+function togglePick(id){
+  id = Number(id);
+  const on = !S.picked.has(id);
+  if (on) S.picked.add(id); else S.picked.delete(id);
+  // Deliberately not render(). Dropped is 672 cards; rebuilding every one of
+  // them to tick one is a wasted frame and, worse, a scroll position thrown
+  // away on every single tap — which on a shelf you are working down is the
+  // difference between select mode being usable and being a trap.
+  const book = document.querySelector(`#main [data-tick="${id}"]`)?.closest('.book');
+  if (book){
+    book.classList.toggle('picked', on);
+    for (const t of book.querySelectorAll('[data-tick]'))
+      t.setAttribute('aria-pressed', String(on));
+  }
+  fillBulk();
+}
+
+function fillBulk(){
+  const bar = $('#bulk');
+  bar.classList.toggle('open', S.picking);
+  document.body.classList.toggle('selecting', S.picking);
+  if (!S.picking) return;
+  const n = S.picked.size;
+  $('#bulk-n').textContent = `${n} selected`;
+  for (const id of ['#bulk-status','#bulk-pub','#bulk-word','#bulk-seen',
+                    '#bulk-unseen','#bulk-mode'])
+    $(id).disabled = !n;
+  const m = S.data.meta;
+  const opts = (sel, blank, items) => {
+    sel.innerHTML = `<option value="">${blank}</option>` +
+      items.map(v => `<option>${esc(v)}</option>`).join('');
+    sel.value = '';
+  };
+  opts($('#bulk-status'), 'Move to shelf…', m.status);
+  opts($('#bulk-pub'), 'Publication…', m.pub);
+  // The axis rides in the value because "Fantasy" alone does not say which of
+  // the two fields it belongs to, and the server writes one axis at a time.
+  const w = wordsOf(S.kind);
+  $('#bulk-word').innerHTML =
+    `<option value="">${S.wordMode === 'remove' ? 'Remove a word…' : 'Add a word…'}</option>` +
+    AXES.map(a => `<optgroup label="${esc(AXIS_LABEL[a])}">${
+      (w[a] || []).map(v => `<option value="${esc(a + '/' + v)}">${esc(v)}</option>`).join('')
+    }</optgroup>`).join('');
+  $('#bulk-word').value = '';
+  $('#bulk-mode').textContent = S.wordMode === 'remove' ? 'Remove' : 'Add';
+  $('#bulk-mode').classList.toggle('on', S.wordMode === 'remove');
+}
+
+/* One call, one toast, one undo. `was` is captured before the write because
+   restoring a bulk move means putting each row back where *it* was, not where
+   the group was — so the ids are regrouped by their old value and sent back
+   one group at a time. */
+async function bulkApply(fields, opts = {}){
+  const ids = [...S.picked];
+  if (!ids.length) return;
+
+  // Every field the action writes, as it stood on every row, before it writes
+  // any of them. All of them and not just the first: moving a shelf also marks
+  // the rows reviewed, and an Undo that put the shelf back while leaving them
+  // marked would take them out of the review queue he just undid putting them
+  // through. Undo means undo.
+  const keys = Object.keys(fields);
+  const readBack = (x, k) => k === 'reviewed' ? !!x.checked : (x[k] ?? '');
+  const was = keys.length
+    ? ids.map(id => [id, Object.fromEntries(keys.map(k => [k, readBack(byId(id), k)]))])
+    : [];
+
+  try {
+    const { add, remove } = opts;
+    const r = await api('/api/bulk', { ids, fields, add, remove });
+    patch(r.series);
+    render();
+    // Restoring means putting each row back where *it* was, which is not one
+    // value — so the ids are regrouped by the state they came from and sent
+    // back a group at a time.
+    const undo = was.length ? { label:'Undo', run: async () => {
+      const groups = new Map();
+      for (const [id, old] of was){
+        const key = JSON.stringify(old);
+        groups.set(key, [...(groups.get(key) || []), id]);
+      }
+      try {
+        for (const [key, group] of groups)
+          await api('/api/bulk', { ids: group, fields: JSON.parse(key) });
+        await load(); toast('Put back');
+      } catch (e) { toast(e.message); }
+    }} : undefined;
+    toast(opts.say || `${r.changed} of ${ids.length} changed`, undo);
+  } catch (e) { toast(e.message); }
+}
+
+/* Rows come back from a write already shaped like the ones in `series`, so a
+   splice beats a reload: 989 rows over the wire to learn that eight of them
+   moved shelf is the fetch this app was built to avoid. */
+function patch(rows){
+  const by = new Map(rows.map(r => [r.id, r]));
+  S.data.series = S.data.series.map(x => by.get(x.id) || x);
+}
+
+/* ══ one at a time ════════════════════════════════════════════════════
+   Two modes, one chassis. `file` asks a question with an answer — which shelf
+   does this belong on — and takes it as a swipe. `fill` asks for something
+   that is not a yes or a no, so it shows the blanks and nothing else: a cover
+   is not a verdict and no amount of swiping produces one.
+
+   The queue is a snapshot taken on entry, deliberately. It is built from
+   whatever the shelf is currently showing, filters included, and then it stops
+   listening — a list that reshuffled itself under him every time a save
+   changed a sort key would lose his place on every card. */
+const GAPS = [
+  ['cover',   x => !x.cover],
+  ['rating',  x => x.rating === null],
+  ['pub',     x => !x.pub],
+  ['type',    x => !x.type],
+  ['setting', x => !x.setting.length],
+  ['genre',   x => !x.genre.length],
+  ['chapter', x => x.progress !== 'once' && x.chapter === null],
+];
+const gapsOf = x => GAPS.filter(([, blank]) => blank(x)).map(([f]) => f);
+
+function enterSolo(mode){
+  const want = mode || (S.solo && S.solo.mode) || 'file';
+  S.picking = false; S.picked.clear();
+  closeSheet();
+  // Already-reviewed rows are held back, which is the entire purpose of the
+  // mark: the counter goes down and stays down. Unless he has asked for them
+  // by name in the drawer, in which case the filter is the instruction.
+  const base = shown().filter(x => S.seen ? true : !x.checked);
+  const pool = want === 'fill' ? base.filter(x => gapsOf(x).length) : base;
+  S.solo = { mode: want, at: 0, queue: pool.map(x => x.id), cover: null };
+  S.view = 'solo';
+  scrollTo({ top: 0 });
+  render();
+}
+
+const soloNow = () => S.solo && byId(S.solo.queue[S.solo.at]);
+
+/* Where the right-hand verdict sends it. Left is always "leave it here", so
+   the pair is "this is still true" against the one move worth one button. */
+const promoteTo = () => S.shelf === 'Hold' ? 'Current'
+                      : S.shelf === 'Current' ? 'Finished' : 'Hold';
+
+function renderSolo(){
+  const q = S.solo;
+  const s = soloNow();
+  const head = `<div class="solo-head">
+      <div class="modes">
+        <button class="mode" data-solo="file" aria-pressed="${q.mode === 'file'}">Re-file</button>
+        <button class="mode" data-solo="fill" aria-pressed="${q.mode === 'fill'}">Fill in</button>
+      </div>
+      <span class="count">${s ? `${q.at + 1} of ${q.queue.length}` : `${q.queue.length}`}</span>
+    </div>`;
+  if (!s){
+    $('#main').innerHTML = `<div class="solo">${head}
+      <div class="empty">${q.queue.length
+        ? 'That is the last of them.'
+        : q.mode === 'fill'
+          ? 'Nothing on this shelf is missing anything.'
+          : 'Nothing left to review on this shelf.'}</div></div>`;
+    return;
+  }
+  $('#main').innerHTML = `<div class="solo">${head}
+    <div class="tri" id="tri">
+      <div class="tri-say l">${esc(q.mode === 'file' ? 'Keep' : 'Skip')}</div>
+      <div class="tri-say r">${esc(q.mode === 'file' ? promoteTo() : 'Save')}</div>
+      <div class="tri-top">
+        <div class="tri-art">${s.coverId
+          ? `<img src="/cover/${s.coverId}" alt="">`
+          : `<div class="fallback" style="--h:${hue(s.title)}">${esc(s.title)}</div>`}</div>
+        <div class="tri-id">
+          <h2>${esc(s.title)}</h2>
+          <div class="sub"><span>${esc([s.type, s.pub, s.status].filter(Boolean).join(' · '))}</span></div>
+          <div class="sub"><span>${esc(soloProgress(s))}</span></div>
+          <div class="tri-words">${[...s.setting, ...s.genre]
+            .map(w => `<span>${esc(w)}</span>`).join('') || '<span>no words yet</span>'}</div>
+        </div>
+      </div>
+      ${q.mode === 'file' ? '' : soloGaps(s)}
+    </div>
+    ${q.mode === 'file' ? `
+      <div class="verdict">
+        <button class="btn keep" data-file="">Leave in ${esc(s.status || 'place')}</button>
+        <button class="btn move" data-file="${esc(promoteTo())}">Move to ${esc(promoteTo())}</button>
+      </div>
+      <div class="rest">${S.data.meta.status
+        .filter(v => v !== s.status && v !== promoteTo())
+        .map(v => `<button class="pick" data-file="${esc(v)}">${esc(v)}</button>`).join('')}</div>
+      <div class="solo-foot"><button class="btn" data-solo-skip>Skip, decide later</button></div>`
+    : `<div class="solo-foot">
+        <button class="btn" data-solo-skip>Skip</button>
+        <button class="btn primary" data-solo-save>Save and next</button>
+      </div>`}
+  </div>`;
+  bindDrag();
+  if (q.mode === 'fill') loadShots(s);
+}
+
+const soloProgress = s => s.progress === 'once'
+  ? (s.chapter ? 'watched' : 'not watched')
+  : s.chapter === null ? 'not started'
+  : `${s.unit || 'ch'} ${fmt(s.chapter)}`;
+
+/* Only what is blank. A field he has already answered is not a question, and
+   drawing it would turn a card you can clear in two taps into the sheet. */
+function soloGaps(s){
+  const gaps = gapsOf(s);
+  const box = (label, body) => `<div class="gap"><span class="lbl">${esc(label)}</span>${body}</div>`;
+  const out = [];
+  if (gaps.includes('cover'))
+    out.push(box('Cover', `<div class="shots" id="s-shots"><div class="empty">Looking…</div></div>`));
+  if (gaps.includes('chapter'))
+    out.push(box(PROGRESS_LABEL[s.kind] || 'Progress',
+      `<input type="number" id="s-chapter" inputmode="numeric" min="0" placeholder="not started">`));
+  if (gaps.includes('rating'))
+    out.push(box('Rating', `<div class="stars">
+      <input type="range" id="s-rating" min="0" max="10" step="1" value="0">
+      <output id="s-rating-out">None</output></div>`));
+  if (gaps.includes('type'))
+    out.push(box('Type', `<div class="picks">${pillRow('type', typeNames(s.kind), '')}</div>`));
+  if (gaps.includes('pub'))
+    out.push(box('Publication status', `<div class="picks">${pillRow('pub', S.data.meta.pub, '')}</div>`));
+  for (const axis of AXES)
+    if (gaps.includes(axis))
+      out.push(box(AXIS_LABEL[axis],
+        `<div class="picks many" id="s-${axis}">${wordRow(axis, [], s.kind)}</div>`));
+  return out.join('');
+}
+
+/* Cover art for the card on screen, and for the one behind it — one ahead and
+   no further. /api/images fans out to six live catalogues per call; walking
+   608 blanks would be 608 of those, and running them in bulk is how you get
+   DuckDuckGo to stop answering. */
+const shots = new Map();
+function fetchShots(s){
+  if (!s) return Promise.resolve([]);
+  if (!shots.has(s.id))
+    shots.set(s.id, api(`/api/images?q=${encodeURIComponent(s.title)}&p=0`
+                        + `&kind=${encodeURIComponent(s.kind)}`)
+      .then(r => (r.results || []).slice(0, 12))
+      .catch(() => [])
+      // Nothing found is not an answer worth keeping. A catalogue being down
+      // for a second looks exactly like a title nobody has art for, and
+      // remembering the first as though it were the second would mean the card
+      // says "nothing found" for the rest of the session with no way to ask
+      // again. A hit is stable and stays; a miss is forgotten, so coming back
+      // to the card retries.
+      .then(hits => { if (!hits.length) shots.delete(s.id); return hits; }));
+  return shots.get(s.id);
+}
+
+async function loadShots(s){
+  const box = $('#s-shots');
+  if (!box) return;
+  const hits = await fetchShots(s);
+  // He may have moved on while six catalogues were thinking about it.
+  if (soloNow() !== s || !document.contains(box)) return;
+  box.innerHTML = hits.length ? hits.map(i => `
+    <button class="shot" data-shot="${esc(i.url)}">
+      <img src="/thumb?u=${encodeURIComponent(i.thumb)}" alt="" loading="lazy"
+           onerror="this.closest('.shot').remove()"></button>`).join('')
+    : `<div class="empty">Nothing found under that name</div>`;
+  const nxt = byId(S.solo.queue[S.solo.at + 1]);
+  if (nxt && gapsOf(nxt).includes('cover')) fetchShots(nxt);
+}
+
+function soloStep(by){
+  S.solo.at += by;
+  S.solo.cover = null;
+  scrollTo({ top: 0 });
+  render();
+}
+
+/* A verdict. '' means leave the shelf alone and only record that he looked,
+   which is a real answer and the commonest one. */
+async function soloFile(status){
+  const s = soloNow();
+  if (!s) return;
+  const fields = { reviewed: true };
+  if (status && status !== s.status) fields.status = status;
+  try {
+    const r = await api('/api/update', { id: s.id, fields });
+    patch([r.series]);
+    soloStep(1);
+  } catch (e) { toast(e.message); }
+}
+
+async function soloSave(){
+  const s = soloNow();
+  if (!s) return;
+  const gaps = gapsOf(s);
+  const fields = { reviewed: true };
+  if (S.solo.cover) fields.cover = S.solo.cover;
+  const ch = $('#s-chapter');
+  if (ch && ch.value.trim() !== '') fields.chapter = Number(ch.value);
+  if (gaps.includes('rating') && $('#s-rating-out') &&
+      $('#s-rating-out').textContent !== 'None')
+    fields.rating = Number($('#s-rating').value);
+  const one = key => $(`#main .picks [data-${key}][aria-pressed=true]`);
+  for (const key of ['type', 'pub'])
+    if (gaps.includes(key) && one(key)) fields[key] = one(key).dataset[key];
+  for (const axis of AXES){
+    if (!gaps.includes(axis)) continue;
+    const picked = pressed('#s-' + axis);
+    if (picked.length) fields[axis] = picked;
+  }
+  try {
+    const r = await api('/api/update', { id: s.id, fields });
+    patch([r.series]);
+    soloStep(1);
+  } catch (e) { toast(e.message); }
+}
+
+/* Drag, because the whole point is one gesture per series. Pointer events
+   rather than touch: the same handler serves a trackpad drag, which is how
+   this gets used at a desk. Vertical movement is left alone so the page can
+   still scroll to reach the controls under a tall card. */
+function bindDrag(){
+  const el = $('#tri');
+  if (!el || S.solo.mode !== 'file') return;
+  let x0 = 0, y0 = 0, dx = 0, on = false;
+  const say = (d) => {
+    el.querySelector('.tri-say.l').style.opacity = d < -20 ? Math.min(1, -d / 90) : 0;
+    el.querySelector('.tri-say.r').style.opacity = d > 20 ? Math.min(1, d / 90) : 0;
+  };
+  el.addEventListener('pointerdown', ev => {
+    if (ev.target.closest('button')) return;
+    on = true; x0 = ev.clientX; y0 = ev.clientY; dx = 0;
+    el.classList.remove('glide');
+    el.setPointerCapture(ev.pointerId);
+  });
+  el.addEventListener('pointermove', ev => {
+    if (!on) return;
+    dx = ev.clientX - x0;
+    // A mostly-vertical drag is a scroll, not a verdict.
+    if (Math.abs(ev.clientY - y0) > Math.abs(dx) && Math.abs(dx) < 30) return;
+    el.style.transform = `translateX(${dx}px) rotate(${dx / 28}deg)`;
+    say(dx);
+  });
+  const end = () => {
+    if (!on) return;
+    on = false;
+    el.classList.add('glide');
+    if (Math.abs(dx) > 90){
+      el.style.transform = `translateX(${dx > 0 ? 700 : -700}px) rotate(${dx / 12}deg)`;
+      el.classList.add('gone');
+      return soloFile(dx > 0 ? promoteTo() : '');
+    }
+    el.style.transform = ''; say(0);
+  };
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+}
 
 /* ══ the sheet ════════════════════════════════════════════════════════ */
 
@@ -1421,8 +2048,38 @@ document.addEventListener('click', async ev => {
   const opener = hit('[data-open]');
   if (opener && opener.dataset.open) return openSheet(opener.dataset.open);
 
+  // The tab row is the scope for whichever view is open, which is what makes
+  // "stats for this shelf" a thing you can ask for at all. From the card
+  // screen it means a different pile to go through, so the queue is rebuilt.
   const tab = hit('.tab');
-  if (tab){ S.view = 'shelf'; S.shelf = tab.dataset.s; return render(); }
+  if (tab){
+    S.shelf = tab.dataset.s;
+    if (S.view === 'solo') return enterSolo();
+    if (S.picked.size) S.picked.clear();
+    return render();
+  }
+
+  const tick = hit('[data-tick]');
+  if (tick) return togglePick(tick.dataset.tick);
+
+  const mode = hit('[data-solo]');
+  if (mode) return enterSolo(mode.dataset.solo);
+
+  const verdict = hit('[data-file]');
+  if (verdict) return soloFile(verdict.dataset.file);
+
+  if (hit('[data-solo-skip]')) return soloStep(1);
+  if (hit('[data-solo-save]')) return soloSave();
+
+  const art = hit('[data-shot]');
+  if (art){
+    // Chosen, not saved. Same rule the sheet's picker follows: the grid picks
+    // artwork and the button underneath commits the card.
+    S.solo.cover = art.dataset.shot;
+    for (const el of document.querySelectorAll('#s-shots .shot.on')) el.classList.remove('on');
+    art.classList.add('on');
+    return;
+  }
 
   if (ev.target.id === 'e-alt-add'){
     $('#e-alts').insertAdjacentHTML('beforeend', altRow());
@@ -1527,6 +2184,10 @@ document.addEventListener('input', ev => {
     $('#e-rating-out').textContent = fmt(v);
     $('#e-rating-tier').textContent = TIER[v];
   }
+  // The card screen's copy. No tier word beside it: the card is already tall
+  // and the number is the part he is setting.
+  if (ev.target.id === 's-rating')
+    $('#s-rating-out').textContent = fmt(Number(ev.target.value));
 });
 
 document.addEventListener('keydown', ev => {
@@ -1539,7 +2200,16 @@ document.addEventListener('keydown', ev => {
   }
   if (ev.key === 'Escape'){
     if ($('#art').open) return;      // the dialog closes itself
-    if (S.open) closeSheet(); else hideToast();
+    if (S.open) closeSheet();
+    else if (S.picking) setPicking(false);
+    else if (S.view === 'solo'){ S.view = 'shelf'; render(); }
+    else hideToast();
+  }
+  // Left and right do what the swipe does, for the desk.
+  if (S.view === 'solo' && S.solo && S.solo.mode === 'file' &&
+      !/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)){
+    if (ev.key === 'ArrowLeft'){ ev.preventDefault(); return soloFile(''); }
+    if (ev.key === 'ArrowRight'){ ev.preventDefault(); return soloFile(promoteTo()); }
   }
   if (ev.key === '/' && !/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)){
     ev.preventDefault(); $('#q').focus();
@@ -1564,7 +2234,11 @@ document.addEventListener('click', ev => {
     // itself — the dock's Shelf button should never toggle to nothing.
     const want = view.dataset.view;
     const next = (S.view === want && want !== 'shelf') ? 'shelf' : want;
-    if (next !== 'shelf') clearFilters();
+    // Stats ignores the drawer, so leaving one applied would light an icon
+    // over a number that does not reflect it. The card screen is the opposite:
+    // the filters are what built its queue, so they survive the trip.
+    if (next === 'stats') clearFilters();
+    if (next === 'solo') return enterSolo();
     S.view = next;
     scrollTo({ top: 0 });
     return render();
@@ -1572,24 +2246,69 @@ document.addEventListener('click', ev => {
   const act = ev.target.closest('[data-act]');
   if (!act) return;
   if (act.dataset.act === 'filter') $('#drawer').classList.toggle('open');
+  if (act.dataset.act === 'pick') setPicking(!S.picking);
   if (act.dataset.act === 'new') $('#dlg').showModal();
   if (act.dataset.act === 'home') goTo(null);
 });
 
 for (const [id, key] of [['#f-type','type'],['#f-pub','pub'],['#f-sort','sort'],
-                        ...AXES.map(a => ['#f-' + a, a])])
+                        ['#f-seen','seen'], ...AXES.map(a => ['#f-' + a, a])])
   $(id).addEventListener('change', e => {
     S[key] = e.target.value;
     if (S.view !== 'shelf') S.view = 'shelf';
     render();
   });
 function clearFilters(){
-  S.type = S.pub = ''; S.sort = 'updated';
+  S.type = S.pub = S.seen = ''; S.sort = 'updated';
   for (const a of AXES){ S[a] = ''; $('#f-' + a).value = ''; }
-  $('#f-type').value = $('#f-pub').value = '';
+  $('#f-type').value = $('#f-pub').value = $('#f-seen').value = '';
   $('#f-sort').value = 'updated';
 }
 $('#f-clear').addEventListener('click', () => { clearFilters(); render(); });
+
+/* Select mode's bar. Every control writes the same answer to everything
+   ticked; the selection survives the write, so two decisions about one batch
+   are two taps rather than two rounds of ticking. */
+$('#bulk-all').addEventListener('click', () => {
+  for (const x of shown()) S.picked.add(x.id);
+  render();
+});
+$('#bulk-none').addEventListener('click', () => { S.picked.clear(); render(); });
+$('#bulk-done').addEventListener('click', () => setPicking(false));
+$('#bulk-mode').addEventListener('click', () => {
+  S.wordMode = S.wordMode === 'remove' ? 'add' : 'remove';
+  fillBulk();
+});
+$('#bulk-seen').addEventListener('click', () =>
+  bulkApply({ reviewed: true }, { say: `${S.picked.size} marked reviewed` }));
+$('#bulk-unseen').addEventListener('click', () =>
+  bulkApply({ reviewed: false }, { say: `${S.picked.size} unmarked` }));
+$('#bulk-status').addEventListener('change', e => {
+  const v = e.target.value;
+  if (!v) return;
+  // Moving something is deciding about it, so the mark comes with it. That is
+  // the difference between this and the Publication menu below, which records
+  // a fact about the book rather than a judgement he has just made.
+  bulkApply({ status: v, reviewed: true },
+            { say: `${S.picked.size} moved to ${v} and marked reviewed` });
+  e.target.value = '';
+});
+$('#bulk-pub').addEventListener('change', e => {
+  const v = e.target.value;
+  if (!v) return;
+  bulkApply({ pub: v }, { say: `${S.picked.size} set to ${v}` });
+  e.target.value = '';
+});
+$('#bulk-word').addEventListener('change', e => {
+  const v = e.target.value;
+  if (!v) return;
+  const cut = v.indexOf('/');
+  const axis = v.slice(0, cut), word = v.slice(cut + 1);
+  const key = S.wordMode === 'remove' ? 'remove' : 'add';
+  bulkApply({}, { [key]: { [axis]: [word] },
+                  say: `${word} ${key === 'add' ? 'added to' : 'removed from'} ${S.picked.size}` });
+  e.target.value = '';
+});
 
 $('#dlg-form').addEventListener('submit', async ev => {
   if (ev.submitter && ev.submitter.value !== 'ok') return;
@@ -1610,7 +2329,10 @@ $('#dlg-form').addEventListener('submit', async ev => {
 /* Another tab, another device, or a phone left open on the shelf. Re-read when
    this one comes back into focus rather than showing a stale count. */
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && !S.open) load();
+  // Not while he is in the middle of something. A reload would throw away a
+  // selection he has spent a minute ticking, and reset the card queue to its
+  // first card — both of them worse than a count being a minute stale.
+  if (!document.hidden && !S.open && !S.picking && S.view !== 'solo') load();
 });
 
 /* The hash is the only thing that says which tracker is open, so Back is the

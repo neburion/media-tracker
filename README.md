@@ -231,6 +231,14 @@ pointing where it did — `Series` *is* `Show` now and `Film` *is* `Movie`. The
 rest are dropped only where nothing was filed under them, because retyping
 somebody's library is not a rename.
 
+### It opens on Current
+
+Whether or not anything is on it. It used to fall back to All when Current was
+empty, which on a Reading shelf of 974 rows with not one of them Current meant
+every session opened on all 974 — the pile, not the thing you are in the middle
+of. An empty Current is the honest answer to *what am I reading*, and it is a
+shelf the review queue fills.
+
 ### Shelves are Current and Finished
 
 They were **Reading** and **Read**, which named the medium rather than the
@@ -301,6 +309,93 @@ series' words is destructive of anything set by hand, and a seeder that
 re-applied it would undo your edits on the next reboot. That is the same reason
 `seed_applied` exists — see below.
 
+## Going through a shelf
+
+989 titles arrived from the vault and most of them had never been looked at
+since: 608 with no cover, 590 with no rating, and 672 of the 974 Reading rows
+filed under Dropped. Opening 672 sheets is not a way to go through that, so
+there are two ways that are, and they are two because there are two different
+problems.
+
+### The reviewed mark
+
+`series.checked_at` — null until you have been through the row yourself, and
+nothing else in the database can stand in for it.
+
+Something else *almost* can, which is worth writing down because it is the
+reason this is a column rather than a query. Having both a cover and a rating
+correlates with having been sorted, and on Hold it does so perfectly: 153 rows
+have both, 63 have neither, and **nothing at all** falls in between. Finished is
+28 for 28. Only Dropped is messy, and even there 576 of 672 fall cleanly.
+
+It was still the wrong thing to build on. That split is a fact about one import,
+not a definition, and it stops being true the moment a pass starts filling
+covers in — after which "has both" means "the queue touched it" rather than "I
+decided about it". So it is recorded.
+
+It is deliberately **not** `updated_at`. That column means the series changed;
+this one means you looked. Marking two hundred rows reviewed in one gesture must
+not reorder a shelf whose default sort is *recently touched*, so
+`update_series()` holds `reviewed` out of that stamp — and out of the reindex,
+since nothing about it is searchable.
+
+Nothing was seeded. Every row starts unmarked.
+
+### Select mode, for when you already know
+
+The plate becomes a checkbox and one bar applies one decision to everything
+ticked: shelf, publication status, add or remove a word, mark or unmark
+reviewed. It composes with the filter drawer, so *filter to Hold* → **All
+shown** → one menu is four taps for two hundred rows.
+
+Ticking does not re-render the grid. Rebuilding 672 cards to tick one is a
+wasted frame and a scroll position thrown away on every tap, which on a shelf
+you are working down is the difference between the mode being usable and being
+a trap.
+
+Undo restores **every** field the action wrote, per row, grouped by the state
+each row came from. Moving a shelf also marks the rows reviewed; an Undo that
+put the shelf back while leaving them marked would quietly take them out of the
+queue it had just put them into.
+
+Setting and Genre cannot be written the way the other fields are. They are
+many-of, so sending the same list to twenty series would *replace* what each
+already wore — "tag these twenty Murim" would strip every other word off all
+twenty. Hence `add` and `remove` on `/api/bulk`, resolved per series against
+what that series already has and then handed to `update_series()` as an
+ordinary axis write, so the per-tracker vocabulary and the reindex happen once,
+in the one place that knows how.
+
+### One at a time, for when you have to look
+
+One series, nothing else on screen, and a decision. Two modes:
+
+**Re-file** asks a question that has an answer — which shelf does this belong
+on — and takes it as a drag, a button or an arrow key. Left leaves it where it
+is, right promotes it (Dropped → Hold, Hold → Current), and the other shelves
+sit underneath for when neither is right. Every verdict marks the row reviewed,
+including *leave it*, which is the commonest answer and still a decision.
+
+**Fill in** does not, because a cover is not a yes or a no and no amount of
+swiping produces one. Same card, but it draws only the fields that are blank —
+a field you have already answered is not a question — and Save writes them all
+in one call. The cover row runs the search by itself as the card comes up, so
+the art is waiting rather than a button you press.
+
+The queue is a snapshot taken on entry, built from whatever the shelf is
+currently showing, filters included, and then it stops listening. A queue that
+reshuffled itself every time a save changed a sort key would lose your place on
+every card. Reviewed rows are held back, which is the whole purpose of the mark:
+the counter goes down and stays down.
+
+Cover art is fetched for the card on screen and **one** card ahead, no further.
+`/api/images` fans out to six live catalogues per call; walking 608 blanks would
+be 608 of those, and running them in bulk is how you get DuckDuckGo to stop
+answering. A result that comes back empty is not cached either — a catalogue
+being down for a second looks exactly like a title nobody has art for, and
+remembering the first as though it were the second would leave the card saying
+*nothing found* for the rest of the session with no way to ask again.
+
 ## Notes are gone
 
 618 series carried a `notes` field: whatever `import-vault.py` could not model,
@@ -349,13 +444,29 @@ a negative. Databases created before the change keep the wider `CHECK`, since
 rebuilding a table to tighten a constraint is not worth the risk to the reading
 history hanging off it, and nothing can write a negative through it anyway.
 
-## Stats is per tracker, with no recommendations and no clock
+## Stats is per shelf, with no recommendations and no clock
 
-`/api/library` returns `stats` keyed by tracker, and the page shows one of them.
-A mean rating over nine hundred manhwa and five films was a number about no
-shelf in particular. Watching counts episodes and, separately, films watched —
-a film contributes no episodes, because counting each as one would put a number
-in the tally that means something else.
+The tab row scopes this view, not just the grid. A mean rating over nine hundred
+manhwa and five films was a number about no shelf in particular — and so, it
+turned out, was a mean over Dropped and Current at once. *Mean chapter* on Hold
+is 47; on Dropped it is 27, which is the shape of the shelf saying what it is.
+Watching counts episodes and, separately, films watched: a film contributes no
+episodes, because counting each as one would put a number in the tally that
+means something else.
+
+**Mean chapter** divides by the titles that actually count chapters and have a
+number — not by the shelf. Films have no chapters and 84 rows simply do not
+record one; both would drag a mean toward zero while pretending to be zeroes.
+
+The numbers are computed **in the browser**, and `/api/library` no longer sends
+a `stats` block at all. That is not a performance trick, it is the only way to
+answer the question: a server cannot scope to the selected tab without a round
+trip per tab, and the whole library is already in the page. The full block over
+the real 974 Reading rows takes 0.15 ms, measured, which is less than
+serialising the answer would have cost.
+
+`app.py --stats` keeps its own SQL version, and it is not a duplicate — it runs
+against a database nobody has opened in a browser.
 
 
 It used to end with two lists — *shelved and now complete*, *on hold and still
@@ -756,13 +867,14 @@ Overrides: `MT_DB`, `MT_SEED`, `MT_SCHEMA`, `MT_UI`, `MT_FONTS`, `MT_CACHE`,
 
 | method | path | body / query |
 |---|---|---|
-| GET | `/api/library` | both trackers in one array, plus per-tracker stats, vocabularies, history |
+| GET | `/api/library` | both trackers in one array, plus vocabularies and history — no stats, see above |
 | GET | `/api/search?q=…` | FTS5 prefix search over title, setting, genre, type |
 | GET | `/api/images?q=…&p=…&kind=…&src=…` | six cover catalogues at once; `p` is the page, `kind` picks the tracker's sources, `src` is the comma-separated list of sources still worth asking |
 | GET | `/api/history` | the last 200 progress changes |
 | GET | `/api/export` | portable JSON keyed on title |
 | POST | `/api/update` | `{id, fields}` — partial; returns which fields changed |
 | POST | `/api/bump` | `{id, by, resume}` — one more chapter or episode, or marks a film watched; optionally un-shelves it |
+| POST | `/api/bulk` | `{ids, fields, add, remove}` — one decision applied to many; `add`/`remove` are `{axis: [word…]}` and resolve per series |
 | POST | `/api/create` | `{title, fields}` — `fields.kind` is the tracker, sent by the client because it is the door it is standing in |
 | POST | `/api/delete` | `{id}` — cascades setting, genre and both logs |
 

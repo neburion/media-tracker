@@ -115,7 +115,21 @@ CREATE TABLE IF NOT EXISTS series (
   type_id    INTEGER REFERENCES type(id)   ON DELETE RESTRICT,
   cover      TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  -- When he last went through this row and decided it was right. Null until
+  -- he has, which is where all 989 of them start.
+  --
+  -- Nothing in the other columns can answer this. Having a cover and a rating
+  -- correlates with it strongly today — on Hold the shelf splits 153 with both
+  -- and 63 with neither, and nothing in between — but that is a fact about an
+  -- import, not a definition, and it stops being true the moment a triage pass
+  -- starts filling covers in. So it is recorded rather than inferred.
+  --
+  -- Deliberately not `updated_at`. That column means the series changed;
+  -- this one means he looked. Marking two hundred rows reviewed in one gesture
+  -- must not reorder a shelf that sorts by "recently touched" by default,
+  -- which is why update_series() holds it out of that stamp.
+  checked_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS series_status ON series(status_id);
@@ -261,7 +275,7 @@ CREATE TABLE IF NOT EXISTS migration (
 CREATE VIEW IF NOT EXISTS v_series AS
 SELECT
   s.id, s.title, s.chapter, s.tome, s.season, s.rating, s.cover,
-  s.created_at, s.updated_at,
+  s.created_at, s.updated_at, s.checked_at,
   COALESCE(kn.name, '') AS kind,
   COALESCE(ty.progress, '') AS progress,
   CASE WHEN COALESCE(ty.progress, '') = 'once' THEN ''

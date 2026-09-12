@@ -214,6 +214,10 @@ def row_to_series(r):
         "coverId": cover_id(cover) if cover else "",
         "created": r["created_at"],
         "updated": r["updated_at"],
+        # When he last went through it, or null. The shelf reads it as a
+        # boolean; the timestamp is kept because "reviewed in March" is a
+        # question this will be asked eventually and a 1 could never answer.
+        "checked": r["checked_at"],
         "logCount": r["log_count"],
         "lastRead": r["last_read"],
     }
@@ -326,12 +330,22 @@ def _word_bucket(db, axis, kind_id):
 
 
 def stats(db):
-    """One block per tracker, keyed by kind.
+    """One block per tracker, keyed by kind. `app.py --stats` and nothing else.
 
     Not one mixed page any more. A Watching shelf of five films and a Reading
     shelf of nine hundred manhwa share a schema and nothing else, and a single
-    "mean rating" over both was a number about no shelf in particular. The app
-    is only ever inside one of them, so this is what it asks for.
+    "mean rating" over both was a number about no shelf in particular.
+
+    This used to ride along on /api/library and on every bump, and the browser
+    drew it. It does not any more, because the page wants these numbers for one
+    *shelf* — Dropped's mean rating, Hold's mean chapter — and a server cannot
+    answer that without a round trip per tab. The whole library is already in
+    the page: the same block over 974 rows computes there in 0.15 ms, measured,
+    which is less time than asking for it would cost to serialise.
+
+    So the two live in different places on purpose, and they are not duplicates
+    of each other — this one is the terminal's, a dozen aggregates against SQL
+    for a shelf nobody has loaded into a browser.
     """
     out = {}
     for r in db.execute("SELECT id, name, unit FROM kind ORDER BY pos"):
@@ -385,15 +399,18 @@ def payload(db):
 
     Every series, both trackers, in one array — 945 rows is a 200 KB response
     the browser filters in a millisecond, and paying for it once beats a fetch
-    every time he walks through a different door."""
-    return {"series": all_series(db), "stats": stats(db),
-            "meta": vocab(db), "history": history(db)}
+    every time he walks through a different door.
+
+    No stats block: it is the same array again, aggregated, and the page can
+    only ask the question it actually has — "this shelf, not this tracker" —
+    if it does the arithmetic itself. See stats()."""
+    return {"series": all_series(db), "meta": vocab(db), "history": history(db)}
 
 
 # ------------------------------------------------------------------ writing
 
 FIELDS = {"title", "chapter", "tome", "season", "rating", "kind", "status",
-          "pub", "type", "cover", "setting", "genre", "alt"}
+          "pub", "type", "cover", "setting", "genre", "alt", "reviewed"}
 
 # The two word fields and the table column each is stored under. Both are
 # many-to-many rows in `series_tag`, so writing one has to leave the other
@@ -440,6 +457,19 @@ def update_series(db, sid, fields):
                 sets.append(f"{field} = ?")
                 args.append(new)
                 changed.append(field)
+
+    # The one field that is about him rather than about the series: true
+    # stamps it now, false clears it back to never-reviewed. Written here
+    # rather than inferred from a save, because the deck marks rows it did not
+    # otherwise change and the shelf marks rows nobody opened at all.
+    if "reviewed" in fields:
+        want = bool(fields["reviewed"])
+        if want != (before["checked"] is not None):
+            # No placeholder and so no `args` entry: the clause carries its own
+            # value. `sets` and `args` stay aligned because they are positional
+            # and this adds to neither side of the pair.
+            sets.append("checked_at = datetime('now')" if want else "checked_at = NULL")
+            changed.append("reviewed")
 
     for field, table in (("kind", "kind"), ("status", "status"),
                         ("pub", "pub"), ("type", "type")):
@@ -537,7 +567,14 @@ def update_series(db, sid, fields):
                        (SELECT id FROM status WHERE name = ?))""",
             (sid, before["status"], str(fields["status"] or "").strip()))
 
-    if changed:
+    # Everything but `reviewed`. Marking a row reviewed is not a change to the
+    # series, and stamping it would be worse than pointless: the default order
+    # is "recently touched", so marking two hundred rows in one bulk gesture
+    # would shuffle the whole shelf to the top and bury what he was working on.
+    # It still commits, and it still counts as `changed` to the caller.
+    touched = [f for f in changed if f != "reviewed"]
+
+    if touched:
         # "Recently touched" has to mean touched, and the stamp used to be set
         # beside the scalar UPDATE above — which is only some of the ways a
         # series changes. Setting and Genre live in series_tag and alt titles
@@ -550,8 +587,47 @@ def update_series(db, sid, fields):
         db.execute("UPDATE series SET updated_at = datetime('now') WHERE id = ?",
                    (sid,))
         S.reindex(db, sid)
+    if changed:
         db.commit()
     return changed
+
+
+def bulk_update(db, ids, fields, add=None, remove=None):
+    """Apply one decision to many series.
+
+    Select mode exists because half of Hold is already sorted and he can see
+    which half at a glance — a judgement no query can make, and 153 separate
+    saves is not a way to record it. So: one gesture, one call.
+
+    `fields` is whatever update_series() takes and is written to every id
+    identically, which is right for Shelf, Publication status and the reviewed
+    mark — the answer is the same for everything selected or it would not have
+    been selected together.
+
+    Setting and Genre cannot work that way. They are many-of, so writing the
+    same list to twenty series would replace what each already had rather than
+    add to it, and "tag these twenty Murim" would quietly strip every other
+    word off all twenty. Hence `add` and `remove`, resolved per series against
+    what that series already wears, then handed to update_series() as an
+    ordinary axis write so the per-tracker vocabulary and the reindex all
+    happen exactly once, in the one place that knows how.
+    """
+    out, touched = [], []
+    for sid in ids:
+        cur = one_series(db, int(sid))
+        f = dict(fields or {})
+        for axis in AXES:
+            plus = [w for w in (add or {}).get(axis, []) if w]
+            minus = {w for w in (remove or {}).get(axis, []) if w}
+            if not plus and not minus:
+                continue
+            f[axis] = [w for w in cur[axis] if w not in minus] + \
+                      [w for w in plus if w not in cur[axis]]
+        changed = update_series(db, int(sid), f)
+        if changed:
+            touched.append(int(sid))
+        out.append(one_series(db, int(sid)))
+    return out, touched
 
 
 def create_series(db, title, fields):
@@ -1401,7 +1477,7 @@ class Handler(BaseHTTPRequestHandler):
                 sid = int(b["id"])
                 changed = update_series(db, sid, b.get("fields") or {})
                 return self._send({"ok": True, "series": one_series(db, sid),
-                                   "changed": changed, "stats": stats(db)})
+                                   "changed": changed})
 
             if u.path == "/api/bump":
                 sid = int(b["id"])
@@ -1415,8 +1491,16 @@ class Handler(BaseHTTPRequestHandler):
                     fields["status"] = "Current"
                 changed = update_series(db, sid, fields)
                 return self._send({"ok": True, "series": one_series(db, sid),
-                                   "changed": changed, "stats": stats(db),
-                                   "history": history(db)})
+                                   "changed": changed, "history": history(db)})
+
+            if u.path == "/api/bulk":
+                ids = [int(i) for i in (b.get("ids") or [])]
+                if not ids:
+                    raise ValueError("nothing selected")
+                rows, touched = bulk_update(db, ids, b.get("fields") or {},
+                                            b.get("add"), b.get("remove"))
+                return self._send({"ok": True, "series": rows,
+                                   "changed": len(touched)})
 
             if u.path == "/api/create":
                 s = create_series(db, b.get("title"), b.get("fields") or {})

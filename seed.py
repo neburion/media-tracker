@@ -334,6 +334,7 @@ def migrate(db):
     add_column(db, "type", "kind_id", "INTEGER REFERENCES kind(id)")
     add_column(db, "tag", "kind_id", "INTEGER REFERENCES kind(id)")
     add_column(db, "type", "progress", "TEXT NOT NULL DEFAULT ''")
+    add_column(db, "series", "checked_at", "TEXT")
 
     # v_series gained kind and unit. A view is not a table: dropping and
     # recreating it costs nothing and is the only way to change one, and
