@@ -142,14 +142,20 @@ RETIRED_TYPES = ["TV", "Miniseries", "Short", "OVA", "ONA", "Special",
 # Wuxia is gone: it and Murim named one shelf, and the shelf is called Murim.
 # The 90 series wearing it were moved by migrate(), not by this list.
 #
-# Dungeon went the same way, minus the shelf. It named a room rather than a
-# world, and every series wearing it was already Fantasy or Hunter Fantasy,
-# which is where a dungeon crawl lives anyway. Video Game has its slot: the
-# stat screens, the levels and the respawns that Fantasy does not say.
+# Dungeon and Slice of Life are gone, and Video Game and Chill are new. Four
+# edits and not two swaps: a word leaving an axis and a word joining it are
+# separate decisions that happen to land in the same commit, and the migrations
+# below treat them that way. Nothing inherits anything.
 #
-# Slice of Life is now Chill, a rename and not a replacement. The series under
-# it are slow-life and healing stories to a title, and Chill is the reason they
-# were picked up. Same shelf, less of a genre-list word about it.
+# Dungeon named a room rather than a world, and every series wearing it was
+# already Fantasy or Hunter Fantasy, which is where a dungeon crawl lives
+# anyway. Video Game is not its replacement; it is here for the stat screens,
+# the levels and the respawns that no other setting says.
+#
+# Slice of Life went for being a genre-list word — it described a pace and got
+# hung on anything slow. Chill describes what the shelf is for, and starts
+# empty on purpose: what deserves it is a judgement per series, not the old
+# tag's membership list renamed.
 TAGS = {
     "Reading": {
         "setting": [
@@ -661,35 +667,31 @@ def migrate(db):
         if n:
             print(f"  migrate: dropped Dungeon from {len(hit)} series")
 
-    # Slice of Life is Chill. A rename, so its 32 series keep the word rather
-    # than come out bare: the join rows point at the tag's id and never see the
-    # spelling. One row per tracker now, hence the loop, and a fold instead of
-    # a rename for whichever of them already has a Chill to collide with.
+    # Slice of Life goes the same way, and for the same reason Dungeon did: its
+    # 32 series carry two tags at least, so the word can be deleted rather than
+    # merged into something and none of them is left bare.
     #
-    # Runs before upsert_vocab(), which is the only reason a straight rename
-    # works at all — the Chill this file now asks for is not in the table yet.
-    if once(db, "tag-slice-of-life-to-chill"):
-        moved = 0
-        for row in db.execute(
-                "SELECT id, axis, kind_id FROM tag WHERE name = 'Slice of Life'"
-                ).fetchall():
-            hit = [r["series_id"] for r in db.execute(
-                "SELECT series_id FROM series_tag WHERE tag_id = ?", (row["id"],))]
-            twin = db.execute(
-                "SELECT id FROM tag WHERE name = 'Chill' AND axis IS ? AND kind_id IS ?",
-                (row["axis"], row["kind_id"])).fetchone()
-            if twin:
-                db.execute("INSERT OR IGNORE INTO series_tag(series_id, tag_id) "
-                           "SELECT series_id, ? FROM series_tag WHERE tag_id = ?",
-                           (twin["id"], row["id"]))
-                db.execute("DELETE FROM tag WHERE id = ?", (row["id"],))
-            else:
-                db.execute("UPDATE tag SET name = 'Chill' WHERE id = ?", (row["id"],))
-            for sid in hit:
-                reindex(db, sid)
-            moved += len(hit)
-        if moved:
-            print(f"  migrate: Slice of Life renamed Chill across {moved} series")
+    # An earlier version of this made it a rename to Chill, which was wrong —
+    # Chill is a new word, not a new spelling of an old one, and it arrived
+    # already wearing 32 series nobody had judged. Where that ran, the repair
+    # is to delete the row it produced: the join rows go with it by cascade,
+    # and upsert_vocab() puts an empty Chill back on both trackers afterwards.
+    # Guarded on the rename's own name in `migration` so that a database which
+    # never saw it keeps whatever the user has since filed under Chill.
+    if once(db, "tag-drop-slice-of-life"):
+        doomed = ["Slice of Life"]
+        if db.execute("SELECT 1 FROM migration WHERE name = ?",
+                      ("tag-slice-of-life-to-chill",)).fetchone():
+            doomed.append("Chill")
+        marks = ",".join("?" * len(doomed))
+        hit = [r["series_id"] for r in db.execute(
+            "SELECT DISTINCT series_id FROM series_tag WHERE tag_id IN "
+            f"(SELECT id FROM tag WHERE name IN ({marks}))", doomed)]
+        db.execute(f"DELETE FROM tag WHERE name IN ({marks})", doomed)
+        for sid in hit:
+            reindex(db, sid)
+        if hit:
+            print(f"  migrate: dropped Slice of Life from {len(hit)} series")
 
     # ── keep the view and the index honest ──────────────────────────────
     #
