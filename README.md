@@ -343,14 +343,23 @@ Nothing was seeded. Every row starts unmarked.
 
 ### Select mode, for when you already know
 
-The plate becomes a checkbox, and the bar at the bottom says how many are
-ticked, offers **All** and **Clear**, and has one action on it: **Edit**. It
-composes with the filter drawer, so *filter to Hold* → **All** → **Edit** is
-three taps into a run of two hundred rows.
+The plate becomes a checkbox and a bar comes up saying how many are ticked,
+with **All** and **Clear** beside the count. It composes with the filter
+drawer, so *filter to Hold* → **All** → **Edit** is three taps into a run of
+two hundred rows.
 
-There is no **Done** on it. The way out is the toolbar button you came in by,
-which stays lit for as long as the mode is on, or Escape — a second exit beside
-the one action was a chip that existed to be pressed by mistake.
+**What the bar offers depends on how the mode was opened**, because the two
+ways in mean different things:
+
+| Opened by | Actions on the bar |
+|---|---|
+| **Group Edit** in the toolbar | **Edit** |
+| the circle on a cover | **Move to…**, **Delete**, **Edit** |
+
+Group Edit is a stated intention — pick a group, edit it — so offering two
+other things to do instead is offering to have misheard. Ticking a cover states
+nothing, so that bar carries the verbs a selection is worth having: where it
+goes, and whether it stays at all.
 
 **The way in is on the card, not in the toolbar.** Hovering a cover draws an
 empty circle in its top-left corner; clicking it turns the mode on with that
@@ -384,23 +393,38 @@ wasted frame and a scroll position thrown away on every tap, which on a shelf
 you are working down is the difference between the mode being usable and being
 a trap. A shift-range does redraw once, because it changes many cards at once.
 
-#### The bulk write is gone from the bar
+#### Move to… keeps its undo. Delete has none, and says so.
 
-The bar used to carry six more controls — a shelf menu, a publication menu, an
-add/remove toggle, a word menu, mark and unmark — each writing one answer to
-everything ticked, with an Undo that regrouped the ids by the state each row
-came from and sent them back a group at a time. It worked, and `add`/`remove`
-on `/api/bulk` existed for it because Setting and Genre are many-of and sending
-one list to twenty series would replace what each already wore.
+**Move to…** writes through `/api/bulk` and marks the rows checked on the way,
+because moving something is deciding about it. Undo restores **every** field
+the write touched, per row, grouped by the state each row came from — a shelf
+put back while the rows stayed marked would quietly take them out of the queue
+the move had just put them into.
 
-It is still nine controls to answer *which ones*, in a bar whose only job is
-answering that, and the one he reached for was the eighth. Whatever those menus
-said, the sheet says per row, with the arrows to move along — which is where
-you were going anyway.
+**Delete** is the one control here with nothing to put back: `/api/delete`
+takes the history with the row. So it asks first, with the count, and with the
+titles when there are eight or fewer — *delete 3* is a number, three names are
+the thing you are about to lose. It is one request per row and one re-read at
+the end, because there is no bulk delete route and inventing one for an action
+performed on a handful of rows a few times a year is a server change to save
+half a second. The count in the toast is what actually succeeded.
 
-**`/api/bulk` is untouched on the server**, `add`/`remove` included. Nothing in
-the browser calls it. Putting the controls back is a row of markup and a
-function; a route removed and re-derived later would not come back the same.
+#### What is not on it any more
+
+A publication menu, an add/remove toggle and a word menu, which were three of
+the nine controls the bar used to carry. They are facts about one book that
+happened to be applicable to many, and the sheet says all three per row with
+the arrows to move along.
+
+`add`/`remove` on `/api/bulk` existed for the word menu, because Setting and
+Genre are many-of and sending one list to twenty series would replace what each
+already wore. **The route still takes them**; nothing in the browser passes
+them. A parameter no caller passes is a parameter that rots, so it is out of
+`bulkApply`'s signature and not out of the server.
+
+There is also no **Done**. The way out is the toolbar button you came in by,
+which stays lit for as long as the mode is on, or Escape — a second exit beside
+the actions was a chip that existed to be pressed by mistake.
 
 ### Group Edit, which is the main way
 
