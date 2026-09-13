@@ -594,10 +594,14 @@ body.selecting .fab{display:none}
    Measured, because the boxes said the row was fine while the numbers sat
    where they had always sat.
 
-   `0 0 auto` makes each cell its own content, and space-between puts the slack
-   between the figures instead of inside them. The count is not fixed — a
-   Watching shelf with films on it grows a fifth — and neither rule cares. */
-.figs{display:flex;flex-wrap:wrap;gap:16px 28px;justify-content:space-between}
+   `0 0 auto` makes each cell its own content, so the slack leaves the cells;
+   centring puts it at the two ends rather than between the figures. Pushed to
+   the edges they read as four unrelated numbers pinned to the corners of a
+   wide box — four *stats*, not a line of figures about one shelf — and a
+   56px gutter is close enough to keep them one thing. The count is not fixed
+   either: a Watching shelf with films on it grows a fifth, and centring does
+   not care how many it is centring. */
+.figs{display:flex;flex-wrap:wrap;gap:16px 56px;justify-content:center}
 .fig{flex:0 0 auto;min-width:0}
 /* Two to a row on a phone, where four cells of their own width leave a gap you
    could park a third in. Two exactly, and not `1 1 120px`: a basis lets three
