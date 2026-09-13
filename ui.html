@@ -602,7 +602,11 @@ body.selecting .fab{display:none}
    either: a Watching shelf with films on it grows a fifth, and centring does
    not care how many it is centring. */
 .figs{display:flex;flex-wrap:wrap;gap:16px 56px;justify-content:center}
-.fig{flex:0 0 auto;min-width:0}
+/* The cell is as wide as the wider of its two lines, so the other one has
+   somewhere to sit — and left was the wrong somewhere. MEAN CHAPTER is half
+   again as wide as 33.6, and a number hung off the left end of its own label
+   is a ragged edge running down a centred row. */
+.fig{flex:0 0 auto;min-width:0;text-align:center}
 /* Two to a row on a phone, where four cells of their own width leave a gap you
    could park a third in. Two exactly, and not `1 1 120px`: a basis lets three
    fit on a 424px screen and drops the fourth onto a line of its own at full
