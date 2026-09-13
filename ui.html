@@ -331,7 +331,7 @@ select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
 /* ── shelf ──────────────────────────────────────────────────────────── */
 main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
   max(14px,env(safe-area-inset-left));max-width:1500px;margin:0 auto}
-body.selecting main{padding-bottom:calc(120px + env(safe-area-inset-bottom))}
+body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 body.selecting .fab{display:none}
 /* clear the dock, plus the home indicator on gesture-nav phones */
 @media (max-width:640px){
@@ -455,12 +455,17 @@ body.selecting .fab{display:none}
 .bulk.open{display:flex}
 .bulk b{font-family:Mono,monospace;font-size:13px;font-weight:400;
   color:var(--ink);margin-right:2px;white-space:nowrap}
-.bulk select{width:auto;min-width:112px;flex:0 1 auto}
 .bulk .sp{flex:1 1 auto}
 @media (max-width:640px){
   .bulk{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
+  /* The count takes the line and the three controls share the one underneath,
+     a third of the screen each. Four controls in a row at 390px wrap anyway;
+     wrapping on purpose is the difference between that and a stray Edit under
+     a ragged row. */
+  .bulk b{flex:1 0 100%}
   .bulk .sp{display:none}
-  .bulk select,.bulk .chip{flex:1 1 auto;min-width:0}
+  .bulk .chip{flex:1 1 0;min-width:0}
+  body.selecting main{padding-bottom:calc(104px + env(safe-area-inset-bottom))}
 }
 
 /* ── one at a time ──────────────────────────────────────────────────────
@@ -889,21 +894,18 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
 <div class="veil" id="veil"></div>
 <aside class="sheet" id="sheet" aria-hidden="true"></aside>
 
-<!-- Select mode's one bar. Every control on it writes the same answer to
-     everything ticked, which is the only reason to have ticked them together. -->
+<!-- Select mode's one bar: who is ticked, two ways to change that, and the
+     one thing the mode is for. It used to carry six more controls — a shelf
+     menu, a publication menu, an add/remove toggle, a word menu, mark and
+     unmark — which were a whole second feature squatting in the bar that Group
+     Edit opens. Nine controls to answer "which ones", and the answer he came
+     for was the eighth. -->
 <div class="bulk" id="bulk">
   <b id="bulk-n">0 selected</b>
   <button class="chip" id="bulk-all">All</button>
   <button class="chip" id="bulk-none">Clear</button>
   <span class="sp"></span>
-  <select id="bulk-status"><option value="">Move to shelf…</option></select>
-  <select id="bulk-pub"><option value="">Publication…</option></select>
-  <button class="chip" id="bulk-mode">Add</button>
-  <select id="bulk-word"><option value="">Add a word…</option></select>
-  <button class="chip" id="bulk-walk">Edit one by one</button>
-  <button class="chip" id="bulk-seen">Mark checked</button>
-  <button class="chip" id="bulk-unseen">Unmark</button>
-  <button class="chip" id="bulk-done">Done</button>
+  <button class="chip go" id="bulk-walk">Edit</button>
 </div>
 
 <div id="toast"><span id="toast-msg"></span><button id="toast-do" hidden></button></div>
@@ -1016,10 +1018,7 @@ const S = {
   type:'', pub:'', setting:'', genre:'', seen:'', sort:'updated', open:null,
   // Select mode. `picked` holds ids and not rows, because a bulk write
   // replaces the rows underneath it and a held object would be the old one.
-  // `pickFor` is why the mode is on: 'edit' when Group Edit in the toolbar
-  // opened it and the selection is on its way into the sheet, null when a
-  // circle on a card did and the bar is whatever he makes of it.
-  picking:false, picked:new Set(), anchor:null, wordMode:'add', pickFor:null,
+  picking:false, picked:new Set(), anchor:null,
   // The quick verdict screen, or null. { queue:[id…], at, cover }
   solo:null,
   // The sheet walking a queue, or null. { queue:[id…], at } — the same shape,
@@ -1061,7 +1060,7 @@ function enter(kind){
   // Both are about a tracker's shelf and neither survives leaving one: a
   // selection of Reading ids means nothing standing in Watching, and a queue
   // of them means less.
-  S.picking = false; S.picked.clear(); S.pickFor = null; S.solo = null; S.walk = null;
+  S.picking = false; S.picked.clear(); S.solo = null; S.walk = null;
   S.q = ''; $('#q').value = ''; $('#q-clear').hidden = true;
   clearFilters();
   if (kind){
@@ -1425,13 +1424,12 @@ const wordRow = (axis, cur, kind) => (wordsOf(kind)[axis] || []).map(v =>
      aria-pressed="${cur.includes(v)}">${esc(v)}</button>`).join('');
 
 /* ══ select mode ══════════════════════════════════════════════════════
-   Tick several, apply one decision. This is the half of the problem no queue
+   Tick several, then edit them. This is the half of the problem no queue
    solves: over half of Hold was already sorted before this app existed, he can
    see which half from the covers, and no column records it. Looking at thirty
    at once and ticking eight is the gesture that matches knowing. */
-function setPicking(on, why){
+function setPicking(on){
   S.picking = on;
-  S.pickFor = on ? (why || null) : null;
   S.picked.clear();
   if (on){ S.view = 'shelf'; S.solo = null; closeSheet(); }
   render();
@@ -1484,79 +1482,19 @@ function fillBulk(){
   document.body.classList.toggle('selecting', S.picking);
   if (!S.picking) return;
   const n = S.picked.size;
-  // Group Edit opens this bar with nothing ticked, which is a bar of nine dead
-  // controls and no instruction. So the counter carries the instruction until
-  // there is a count to carry instead, and Edit one by one — the thing he
-  // pressed Group Edit to reach — is the lit one.
-  $('#bulk-n').textContent = n ? `${n} selected`
-    : S.pickFor === 'edit' ? 'Pick a group, or All' : '0 selected';
-  $('#bulk-walk').classList.toggle('go', S.pickFor === 'edit');
-  for (const id of ['#bulk-status','#bulk-pub','#bulk-word','#bulk-seen',
-                    '#bulk-unseen','#bulk-mode','#bulk-walk'])
-    $(id).disabled = !n;
-  const m = S.data.meta;
-  const opts = (sel, blank, items) => {
-    sel.innerHTML = `<option value="">${blank}</option>` +
-      items.map(v => `<option>${esc(v)}</option>`).join('');
-    sel.value = '';
-  };
-  opts($('#bulk-status'), 'Move to shelf…', m.status);
-  opts($('#bulk-pub'), 'Publication…', m.pub);
-  // The axis rides in the value because "Fantasy" alone does not say which of
-  // the two fields it belongs to, and the server writes one axis at a time.
-  const w = wordsOf(S.kind);
-  $('#bulk-word').innerHTML =
-    `<option value="">${S.wordMode === 'remove' ? 'Remove a word…' : 'Add a word…'}</option>` +
-    AXES.map(a => `<optgroup label="${esc(AXIS_LABEL[a])}">${
-      (w[a] || []).map(v => `<option value="${esc(a + '/' + v)}">${esc(v)}</option>`).join('')
-    }</optgroup>`).join('');
-  $('#bulk-word').value = '';
-  $('#bulk-mode').textContent = S.wordMode === 'remove' ? 'Remove' : 'Add';
-  $('#bulk-mode').classList.toggle('on', S.wordMode === 'remove');
+  // The mode opens with nothing ticked, which is a bar of dead controls and no
+  // instruction, so the counter carries the instruction until there is a count
+  // to carry instead.
+  $('#bulk-n').textContent = n ? `${n} selected` : 'Pick a group, or All';
+  $('#bulk-walk').disabled = $('#bulk-none').disabled = !n;
 }
 
-/* One call, one toast, one undo. `was` is captured before the write because
-   restoring a bulk move means putting each row back where *it* was, not where
-   the group was — so the ids are regrouped by their old value and sent back
-   one group at a time. */
-async function bulkApply(fields, opts = {}){
-  const ids = [...S.picked];
-  if (!ids.length) return;
-
-  // Every field the action writes, as it stood on every row, before it writes
-  // any of them. All of them and not just the first: moving a shelf also marks
-  // the rows checked, and an Undo that put the shelf back while leaving them
-  // marked would take them out of the queue he just undid putting them
-  // through. Undo means undo.
-  const keys = Object.keys(fields);
-  const readBack = (x, k) => k === 'reviewed' ? !!x.checked : (x[k] ?? '');
-  const was = keys.length
-    ? ids.map(id => [id, Object.fromEntries(keys.map(k => [k, readBack(byId(id), k)]))])
-    : [];
-
-  try {
-    const { add, remove } = opts;
-    const r = await api('/api/bulk', { ids, fields, add, remove });
-    patch(r.series);
-    render();
-    // Restoring means putting each row back where *it* was, which is not one
-    // value — so the ids are regrouped by the state they came from and sent
-    // back a group at a time.
-    const undo = was.length ? { label:'Undo', run: async () => {
-      const groups = new Map();
-      for (const [id, old] of was){
-        const key = JSON.stringify(old);
-        groups.set(key, [...(groups.get(key) || []), id]);
-      }
-      try {
-        for (const [key, group] of groups)
-          await api('/api/bulk', { ids: group, fields: JSON.parse(key) });
-        await load(); toast('Put back');
-      } catch (e) { toast(e.message); }
-    }} : undefined;
-    toast(opts.say || `${r.changed} of ${ids.length} changed`, undo);
-  } catch (e) { toast(e.message); }
-}
+/* No bulkApply(). Writing one answer to everything ticked was a real feature
+   with a real undo — it regrouped the ids by the state each row came from and
+   sent them back a group at a time — and it is gone with the controls that
+   drove it. It cost six controls in a bar whose one job is choosing which rows
+   to edit, and the sheet can say anything they said, per row, with the arrows
+   to move along. `/api/bulk` is untouched on the server. */
 
 /* Rows come back from a write already shaped like the ones in `series`, so a
    splice beats a reload: 989 rows over the wire to learn that eight of them
@@ -2471,7 +2409,7 @@ document.addEventListener('click', ev => {
   // Group Edit is editing a selection and there is no selection yet, so the
   // button is the way into making one, with the bar already saying so. Pressing
   // it again while it is lit is the way back out.
-  if (act.dataset.act === 'edit') setPicking(!S.picking, 'edit');
+  if (act.dataset.act === 'edit') setPicking(!S.picking);
   if (act.dataset.act === 'new') $('#dlg').showModal();
   if (act.dataset.act === 'home') goTo(null);
 });
@@ -2491,15 +2429,15 @@ function clearFilters(){
 }
 $('#f-clear').addEventListener('click', () => { clearFilters(); render(); });
 
-/* Select mode's bar. Every control writes the same answer to everything
-   ticked; the selection survives the write, so two decisions about one batch
-   are two taps rather than two rounds of ticking. */
+/* Select mode's bar. Three controls that say who is ticked and one that acts
+   on them, and no way out on it: the way out is the toolbar button he came in
+   by, which is lit for as long as the mode is on, or Escape. A Done chip beside
+   Edit was a second exit for a mode with an obvious one. */
 $('#bulk-all').addEventListener('click', () => {
   for (const x of shown()) S.picked.add(x.id);
   render();
 });
 $('#bulk-none').addEventListener('click', () => { S.picked.clear(); render(); });
-$('#bulk-done').addEventListener('click', () => setPicking(false));
 /* Open the first of the selection with the rest of it behind the arrows. Select
    mode is left on the way in: the queue is a snapshot, so the ticks have done
    their job and a grid still covered in them behind the sheet is just noise. */
@@ -2509,40 +2447,6 @@ $('#bulk-walk').addEventListener('click', () => {
   setPicking(false);
   openSheet(order[0], order);
   render();
-});
-$('#bulk-mode').addEventListener('click', () => {
-  S.wordMode = S.wordMode === 'remove' ? 'add' : 'remove';
-  fillBulk();
-});
-$('#bulk-seen').addEventListener('click', () =>
-  bulkApply({ reviewed: true }, { say: `${S.picked.size} marked checked` }));
-$('#bulk-unseen').addEventListener('click', () =>
-  bulkApply({ reviewed: false }, { say: `${S.picked.size} unmarked` }));
-$('#bulk-status').addEventListener('change', e => {
-  const v = e.target.value;
-  if (!v) return;
-  // Moving something is deciding about it, so the mark comes with it. That is
-  // the difference between this and the Publication menu below, which records
-  // a fact about the book rather than a judgement he has just made.
-  bulkApply({ status: v, reviewed: true },
-            { say: `${S.picked.size} moved to ${v} and marked checked` });
-  e.target.value = '';
-});
-$('#bulk-pub').addEventListener('change', e => {
-  const v = e.target.value;
-  if (!v) return;
-  bulkApply({ pub: v }, { say: `${S.picked.size} set to ${v}` });
-  e.target.value = '';
-});
-$('#bulk-word').addEventListener('change', e => {
-  const v = e.target.value;
-  if (!v) return;
-  const cut = v.indexOf('/');
-  const axis = v.slice(0, cut), word = v.slice(cut + 1);
-  const key = S.wordMode === 'remove' ? 'remove' : 'add';
-  bulkApply({}, { [key]: { [axis]: [word] },
-                  say: `${word} ${key === 'add' ? 'added to' : 'removed from'} ${S.picked.size}` });
-  e.target.value = '';
 });
 
 $('#dlg-form').addEventListener('submit', async ev => {

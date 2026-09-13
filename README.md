@@ -343,10 +343,14 @@ Nothing was seeded. Every row starts unmarked.
 
 ### Select mode, for when you already know
 
-The plate becomes a checkbox and one bar applies one decision to everything
-ticked: shelf, publication status, add or remove a word, mark or unmark
-checked. It composes with the filter drawer, so *filter to Hold* → **All** →
-one menu is four taps for two hundred rows.
+The plate becomes a checkbox, and the bar at the bottom says how many are
+ticked, offers **All** and **Clear**, and has one action on it: **Edit**. It
+composes with the filter drawer, so *filter to Hold* → **All** → **Edit** is
+three taps into a run of two hundred rows.
+
+There is no **Done** on it. The way out is the toolbar button you came in by,
+which stays lit for as long as the mode is on, or Escape — a second exit beside
+the one action was a chip that existed to be pressed by mistake.
 
 **The way in is on the card, not in the toolbar.** Hovering a cover draws an
 empty circle in its top-left corner; clicking it turns the mode on with that
@@ -380,18 +384,23 @@ wasted frame and a scroll position thrown away on every tap, which on a shelf
 you are working down is the difference between the mode being usable and being
 a trap. A shift-range does redraw once, because it changes many cards at once.
 
-Undo restores **every** field the action wrote, per row, grouped by the state
-each row came from. Moving a shelf also marks the rows checked; an Undo that
-put the shelf back while leaving them marked would quietly take them out of the
-queue it had just put them into.
+#### The bulk write is gone from the bar
 
-Setting and Genre cannot be written the way the other fields are. They are
-many-of, so sending the same list to twenty series would *replace* what each
-already wore — "tag these twenty Murim" would strip every other word off all
-twenty. Hence `add` and `remove` on `/api/bulk`, resolved per series against
-what that series already has and then handed to `update_series()` as an
-ordinary axis write, so the per-tracker vocabulary and the reindex happen once,
-in the one place that knows how.
+The bar used to carry six more controls — a shelf menu, a publication menu, an
+add/remove toggle, a word menu, mark and unmark — each writing one answer to
+everything ticked, with an Undo that regrouped the ids by the state each row
+came from and sent them back a group at a time. It worked, and `add`/`remove`
+on `/api/bulk` existed for it because Setting and Genre are many-of and sending
+one list to twenty series would replace what each already wore.
+
+It is still nine controls to answer *which ones*, in a bar whose only job is
+answering that, and the one he reached for was the eighth. Whatever those menus
+said, the sheet says per row, with the arrows to move along — which is where
+you were going anyway.
+
+**`/api/bulk` is untouched on the server**, `add`/`remove` included. Nothing in
+the browser calls it. Putting the controls back is a row of markup and a
+function; a route removed and re-derived later would not come back the same.
 
 ### Group Edit, which is the main way
 
@@ -974,7 +983,7 @@ Overrides: `MT_DB`, `MT_SEED`, `MT_SCHEMA`, `MT_UI`, `MT_FONTS`, `MT_CACHE`,
 | GET | `/api/export` | portable JSON keyed on title |
 | POST | `/api/update` | `{id, fields}` — partial; returns which fields changed |
 | POST | `/api/bump` | `{id, by, resume}` — one more chapter or episode, or marks a film watched; optionally un-shelves it |
-| POST | `/api/bulk` | `{ids, fields, add, remove}` — one decision applied to many; `add`/`remove` are `{axis: [word…]}` and resolve per series |
+| POST | `/api/bulk` | `{ids, fields, add, remove}` — one decision applied to many; `add`/`remove` are `{axis: [word…]}` and resolve per series. Served, but no longer called by the UI — see *The bulk write is gone from the bar* |
 | POST | `/api/create` | `{title, fields}` — `fields.kind` is the tracker, sent by the client because it is the door it is standing in |
 | POST | `/api/delete` | `{id}` — cascades setting, genre and both logs |
 
