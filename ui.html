@@ -269,6 +269,12 @@ select,.chip{
 .chip{width:auto}
 select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
 .chip.on{background:var(--a3);border-color:var(--a7);color:var(--a11)}
+/* The bar is opened by Edit and the bar has nine controls on it, so the one he
+   came for says so. Solid, not tinted: `.on` already means "this toggle is
+   thrown" three chips along, and two meanings of one look is a bar you read. */
+.chip.go{background:var(--a9);border-color:var(--a9);color:#fff;font-weight:600}
+.chip.go:hover:not(:disabled){background:var(--a10);border-color:var(--a10);color:#fff}
+.chip:disabled{opacity:.4}
 /* Reset has no question of its own, so it aligns to the bottom of the row. */
 .filt.act{justify-content:flex-end}
 
@@ -412,13 +418,32 @@ body.selecting .fab{display:none}
 .book.picked .tick::after{content:"";position:absolute;left:6px;top:2px;
   width:5px;height:10px;border:solid #fff;border-width:0 2px 2px 0;
   transform:rotate(45deg)}
-/* Reviewed, on the shelf. Bottom-left so it clears the rating and the stripe.
-   Invisible on day one by construction — nothing is reviewed yet — and it
-   fills in as he works, which is the only progress bar that matters here. */
+/* Checked, on the shelf. Invisible on day one by construction — nothing is
+   checked yet — and it fills in as he works, which is the only progress bar
+   that matters here. */
 .seen{position:absolute;top:8px;left:8px;width:18px;height:18px;
   display:grid;place-items:center;border-radius:var(--r-dot);
   background:rgba(0,0,0,.6);color:var(--current);font-size:11px;
-  backdrop-filter:blur(3px)}
+  backdrop-filter:blur(3px);transition:opacity .12s}
+
+/* The way in. Select mode used to be an unlabelled square in the toolbar,
+   which is a feature nobody finds; the affordance belongs on the thing it acts
+   on. So the circle is drawn on the card and hover is what reveals it — the
+   same bargain `.plus` makes at the opposite corner — and clicking it turns the
+   mode on with that card already ticked. */
+.pickone{position:absolute;top:8px;left:8px;width:26px;height:26px;padding:0;
+  border-radius:var(--r-dot);border:2px solid rgba(255,255,255,.78);
+  background:rgba(0,0,0,.5);backdrop-filter:blur(3px);
+  opacity:0;transition:opacity .12s}
+.book:hover .pickone,.pickone:focus-visible{opacity:1}
+.pickone:hover{background:var(--a9);border-color:var(--a9)}
+/* Both want that corner and only one of them is a control, so the badge yields
+   for as long as the pointer is on the card. */
+.book:hover .seen{opacity:0}
+/* Nothing hovers on a phone: the circle would be drawn never and reachable
+   never. Edit in the toolbar is the way in there, and it lands in the same
+   mode — so this is a shortcut that is missing, not a feature. */
+@media (hover:none){.pickone{display:none}}
 
 .bulk{
   position:fixed;left:0;right:0;bottom:0;z-index:47;display:none;
@@ -445,64 +470,93 @@ body.selecting .fab{display:none}
    and because the answer to "should this still be dropped" is usually obvious
    within a second of seeing the cover — which the grid, showing thirty at
    once, gives you no way to say. */
-.solo{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+/* The column is the card's width, worked out the same way the card is: a title
+   and a legend wider than the thing they are about read as a panel the cover
+   is sitting in. The card is sized off the viewport height — see .tri — so the
+   width it will come out at is that height's two thirds, and the floor keeps a
+   short window from shrinking the whole screen into a stamp. */
+.solo{width:min(100%,max(300px,min(58dvh,560px) * 2 / 3));margin:0 auto;
+  display:flex;flex-direction:column;gap:14px}
 .solo-head{display:flex;align-items:baseline;gap:8px}
 .solo-h{font-family:Lit,Georgia,serif;font-size:20px;font-weight:600;margin:0;
   letter-spacing:-.01em}
 .solo-head .count{margin-left:auto;font-family:Mono,monospace;font-size:12px;
   color:var(--ink-3);white-space:nowrap}
 
-/* The two ways through a shelf, above the grid and named by what they do,
-   because the same things behind unlabelled toolbar icons went unfound.
-
-   Two and not one because they are two different passes, and he wanted both:
-   the full editor on every row, and a two-button verdict for when the only
-   question is which shelf it belongs on. Sorted by which he asked for first. */
-.lead{
-  display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;
-  margin:0 0 var(--gap);padding:12px 14px;border-radius:var(--r-xl);
-  border:1px solid var(--a7);background:var(--a3);
-}
-.lead p{margin:0;flex:1 1 180px;font-size:13px;color:var(--a11)}
-.leads{display:flex;gap:8px;flex-wrap:wrap}
-.leads .btn{height:36px;padding:0 14px;font-size:13px;background:var(--paper)}
-
+/* The cover, at the size a cover deserves. This was a 150px thumbnail in a
+   panel with a column of fields beside it and two buttons under it, which is a
+   form about a book; the picture is the question, so the picture is the card.
+   Height off the viewport rather than width off the column, because the whole
+   point is that a card and what the two directions mean are both on screen at
+   once — a verdict that costs a scroll is not one gesture. */
 .tri{
-  position:relative;background:var(--card);border:1px solid var(--rule);
-  border-radius:var(--r-xl);padding:18px;display:flex;flex-direction:column;
-  gap:14px;touch-action:pan-y;user-select:none;
+  position:relative;width:100%;aspect-ratio:2/3;overflow:hidden;
+  border-radius:var(--r-xl);background:var(--sunk);
+  border:1px solid var(--rule-2);box-shadow:var(--shadow);
+  touch-action:pan-y;user-select:none;cursor:grab;
 }
+.tri:active{cursor:grabbing}
 /* Follows the finger. No transition while dragging or it lags behind by a
    frame; the class goes on only for the spring back and the fly out. */
 .tri.glide{transition:transform .22s ease,opacity .22s ease}
 .tri.gone{opacity:0}
-.tri-art{width:150px;aspect-ratio:2/3;flex:none;border-radius:var(--r-lg);
-  overflow:hidden;background:var(--sunk);border:1px solid var(--rule-2);
-  box-shadow:var(--shadow)}
+.tri-art{position:absolute;inset:0}
 .tri-art img{width:100%;height:100%;object-fit:cover;display:block}
-.tri-top{display:flex;gap:16px;align-items:flex-start}
-.tri-id{min-width:0;display:flex;flex-direction:column;gap:7px;padding-top:2px}
-.tri-id h2{font-family:Lit,Georgia,serif;font-size:19px;line-height:1.25;
-  font-weight:600;margin:0;letter-spacing:-.01em}
-.tri-id .sub{margin:0}
+/* `.fallback` is the shelf card's no-artwork ground, already absolute and
+   already hued off the title. At this size it only wants a bigger face. */
+.tri .fallback{font-size:21px;line-height:1.3;padding:26px}
+/* Over the foot of the cover. The gradient runs most of the lower third
+   because a serif title in white has to clear whatever is behind it, and half
+   the posters here are bright. */
+.tri-info{position:absolute;left:0;right:0;bottom:0;
+  padding:72px 16px calc(16px + env(safe-area-inset-bottom));
+  display:flex;flex-direction:column;gap:8px;
+  background:linear-gradient(transparent,rgba(0,0,0,.5) 36%,rgba(0,0,0,.93))}
+.tri-info h2{font-family:Lit,Georgia,serif;font-size:22px;line-height:1.2;
+  font-weight:600;margin:0;letter-spacing:-.015em;color:#fff;
+  text-shadow:0 1px 3px rgba(0,0,0,.55);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  overflow:hidden}
+.tri-line{display:flex;align-items:baseline;gap:10px;font-size:12.5px;
+  color:rgba(255,255,255,.84);min-width:0}
+.tri-line span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tri-line em{font-style:normal;margin-left:auto;flex:none;
+  font-family:Mono,monospace;font-size:11.5px;color:rgba(255,255,255,.72)}
 .tri-words{display:flex;flex-wrap:wrap;gap:5px}
-.tri-words span{font-size:11px;padding:2px 7px;border-radius:var(--r-sm);
-  background:var(--sunk);color:var(--ink-2)}
-/* The verdict, printed across the cover as the card is dragged. A direction
-   is not self-evident and guessing wrong costs a row. */
-.tri-say{position:absolute;top:22px;font-family:Pub,system-ui,sans-serif;
-  font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
-  padding:6px 12px;border-radius:var(--r-md);opacity:0;pointer-events:none;
-  border:2px solid currentColor}
-.tri-say.l{left:22px;color:var(--dropped);transform:rotate(-7deg)}
-.tri-say.r{right:22px;color:var(--current);transform:rotate(7deg)}
+.tri-words span{font-size:11px;padding:2px 8px;border-radius:var(--r-sm);
+  background:rgba(255,255,255,.15);color:#fff}
+/* The verdict, stamped across the cover as the card is dragged, in the colour
+   of the shelf it names — the same --<status> token the tab dots and the stats
+   bars resolve, so the word and the marker always agree. */
+.tri-say{position:absolute;top:24px;font-family:Pub,system-ui,sans-serif;
+  font-size:17px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  padding:7px 13px;border-radius:var(--r-md);opacity:0;pointer-events:none;
+  color:var(--tone,var(--ink));background:rgba(0,0,0,.45);
+  border:2px solid currentColor;backdrop-filter:blur(2px)}
+.tri-say.l{left:20px;transform:rotate(-7deg)}
+.tri-say.r{right:20px;transform:rotate(7deg)}
 
-.verdict{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.verdict .btn{height:var(--tap);font-size:14px}
-.verdict .btn.keep{border-color:var(--rule)}
-.verdict .btn.move{background:var(--a9);border-color:var(--a9);color:#fff}
-/* Fill-in mode. Each blank field is a labelled block; nothing that is already
-   filled is drawn at all, which is the entire point of the screen. */
+/* What each direction does, said out loud under the card. A swipe is not
+   discoverable and guessing wrong costs a row, so both answers are written
+   down in the colour they get stamped in. They are pressable, which is what a
+   swipe is at a desk with no trackpad — and the arrow keys do the same. */
+.swipes{display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  padding-top:2px;border-top:1px solid var(--rule-2)}
+.swipe{display:flex;flex-direction:column;gap:2px;align-items:flex-start;
+  background:none;border:0;padding:8px 2px;text-align:left;min-width:0}
+.swipe.r{align-items:flex-end;text-align:right}
+.swipe b{font-weight:600;font-size:13.5px;color:var(--tone,var(--ink-2));
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.swipe span{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  font-weight:600;color:var(--ink-3)}
+.swipe:hover b{text-decoration:underline;text-underline-offset:3px}
+
+/* Whatever the card is missing, under the legend instead of on the cover: the
+   cover is the question and a form printed over it is the screen this replaced.
+   Blank fields only, which is the entire point — see soloGaps(). */
+.fills{background:var(--card);border:1px solid var(--rule);
+  border-radius:var(--r-xl);padding:16px;display:flex;flex-direction:column;
+  gap:15px}
 .gap{display:flex;flex-direction:column;gap:7px}
 .gap>.lbl{padding-left:2px}
 .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));
@@ -777,8 +831,8 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
       <span><b id="t-ch">0</b> <i id="t-ch-word">chapters</i></span>
     </div>
     <button class="ico" data-act="filter" title="Filters" aria-label="Filters"><svg viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg></button>
-    <button class="ico" data-act="pick" title="Select several" aria-label="Select several"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V5h14v14zm-9.5-3.5-3-3L7.9 11l1.6 1.6L15.1 7l1.4 1.4-7 7z"/></svg></button>
-    <button class="ico" data-view="solo" title="Review" aria-label="Review one at a time"><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></button>
+    <button class="ico" data-act="edit" title="Group Edit" aria-label="Group Edit"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></button>
+    <button class="ico" data-view="solo" title="Group Sort" aria-label="Group Sort, one at a time"><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></button>
     <button class="ico" data-view="stats" title="Statistics" aria-label="Statistics"><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></button>
     <button class="ico" data-act="new" title="Add a series" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
   </div>
@@ -805,11 +859,11 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
       <select id="f-type" title="What kind of thing it is"><option value="">Any</option></select></div>
     <div class="filt"><label class="lbl" for="f-pub">Publication status</label>
       <select id="f-pub" title="Whether the author is still writing it"><option value="">Any</option></select></div>
-    <div class="filt"><label class="lbl" for="f-seen">Reviewed</label>
+    <div class="filt"><label class="lbl" for="f-seen">Checked</label>
       <select id="f-seen" title="Whether you have been through it yourself">
         <option value="">Any</option>
         <option value="no">Not yet</option>
-        <option value="yes">Reviewed</option>
+        <option value="yes">Checked</option>
       </select></div>
     <div class="filt"><label class="lbl" for="f-setting">Setting</label>
       <select id="f-setting" title="Where it takes place"><option value="">Any</option></select></div>
@@ -825,7 +879,7 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
 
 <nav class="dock" id="dock" aria-label="Views" hidden>
   <button data-view="shelf"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></i><span>Shelf</span></button>
-  <button data-view="solo"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></i><span>Review</span></button>
+  <button data-view="solo"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></i><span>Group Sort</span></button>
   <button data-view="stats"><i><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></i><span>Stats</span></button>
   <button data-act="home"><i><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></i><span>Trackers</span></button>
 </nav>
@@ -839,7 +893,7 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
      everything ticked, which is the only reason to have ticked them together. -->
 <div class="bulk" id="bulk">
   <b id="bulk-n">0 selected</b>
-  <button class="chip" id="bulk-all">All shown</button>
+  <button class="chip" id="bulk-all">All</button>
   <button class="chip" id="bulk-none">Clear</button>
   <span class="sp"></span>
   <select id="bulk-status"><option value="">Move to shelf…</option></select>
@@ -847,7 +901,7 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
   <button class="chip" id="bulk-mode">Add</button>
   <select id="bulk-word"><option value="">Add a word…</option></select>
   <button class="chip" id="bulk-walk">Edit one by one</button>
-  <button class="chip" id="bulk-seen">Mark reviewed</button>
+  <button class="chip" id="bulk-seen">Mark checked</button>
   <button class="chip" id="bulk-unseen">Unmark</button>
   <button class="chip" id="bulk-done">Done</button>
 </div>
@@ -962,7 +1016,10 @@ const S = {
   type:'', pub:'', setting:'', genre:'', seen:'', sort:'updated', open:null,
   // Select mode. `picked` holds ids and not rows, because a bulk write
   // replaces the rows underneath it and a held object would be the old one.
-  picking:false, picked:new Set(), anchor:null, wordMode:'add',
+  // `pickFor` is why the mode is on: 'edit' when Group Edit in the toolbar
+  // opened it and the selection is on its way into the sheet, null when a
+  // circle on a card did and the bar is whatever he makes of it.
+  picking:false, picked:new Set(), anchor:null, wordMode:'add', pickFor:null,
   // The quick verdict screen, or null. { queue:[id…], at, cover }
   solo:null,
   // The sheet walking a queue, or null. { queue:[id…], at } — the same shape,
@@ -1004,7 +1061,7 @@ function enter(kind){
   // Both are about a tracker's shelf and neither survives leaving one: a
   // selection of Reading ids means nothing standing in Watching, and a queue
   // of them means less.
-  S.picking = false; S.picked.clear(); S.solo = null; S.walk = null;
+  S.picking = false; S.picked.clear(); S.pickFor = null; S.solo = null; S.walk = null;
   S.q = ''; $('#q').value = ''; $('#q-clear').hidden = true;
   clearFilters();
   if (kind){
@@ -1164,7 +1221,11 @@ function render(){
   // rather than emptying it is what makes the doors a place rather than a
   // shelf with no rows.
   const inside = !!S.kind;
-  $('#head').hidden = $('#dock').hidden = $('#fab').hidden = !inside;
+  $('#head').hidden = $('#dock').hidden = !inside;
+  // Add is the one thing on screen that is not about the card in front of him,
+  // and on a phone the floating button sits exactly where the right-hand half
+  // of that card's legend is. Same call select mode's bar already makes.
+  $('#fab').hidden = !inside || S.view === 'solo';
   document.title = inside ? `${S.kind} · Media Tracker` : 'Media Tracker';
   if (!inside) return renderPortal();
 
@@ -1202,8 +1263,9 @@ function render(){
     b.hidden = !onShelf;
     b.classList.toggle('on', !!filtered);
   }
-  // Select mode is a way of acting on the grid, so it goes where the grid is.
-  for (const b of document.querySelectorAll('[data-act=pick]')){
+  // Group Edit is a way of acting on the grid, so it goes where the grid is —
+  // and it lights while the selection it asked for is being made.
+  for (const b of document.querySelectorAll('[data-act=edit]')){
     b.hidden = !onShelf;
     b.classList.toggle('on', S.picking);
   }
@@ -1228,21 +1290,15 @@ function renderPortal(){
   </div>`;
 }
 
+/* No banner over the grid. It was there to name the two passes, because both
+   of them used to hide behind an unlabelled square in the toolbar — but a slab
+   of chrome standing between him and the shelf every single time he opens one
+   is a high price for a signpost, and both passes are now reachable by name:
+   Group Sort in the dock, Group Edit in the toolbar. */
 function renderShelf(){
   const list = shown();
-  // The way into the review queue, above the grid, saying how many are in it.
-  // It was an unlabelled square in a row of five other unlabelled squares,
-  // which is a feature nobody finds. It is not drawn once the shelf is clear.
-  const todo = S.picking ? [] : list.filter(x => !x.checked);
-  const lead = todo.length ? `<div class="lead">
-      <p>${todo.length} on this shelf you have not been through</p>
-      <div class="leads">
-        <button class="btn" data-walk-shelf>Edit each one</button>
-        <button class="btn" data-view="solo">Quick pass: Hold or Dropped</button>
-      </div>
-    </div>` : '';
   $('#main').innerHTML = list.length
-    ? lead + `<div class="grid">${list.map(card).join('')}</div>`
+    ? `<div class="grid">${list.map(card).join('')}</div>`
     : `<div class="empty">Nothing on this shelf.</div>`;
 }
 
@@ -1283,7 +1339,9 @@ function card(s){
          ${S.picking ? `aria-pressed="${on}"` : ''}>
       ${art}
       <div class="mark"></div>
-      ${s.checked && !S.picking ? '<div class="seen" title="Reviewed">✓</div>' : ''}
+      ${s.checked && !S.picking ? '<div class="seen" title="Checked">✓</div>' : ''}
+      ${S.picking ? '' : `<button class="pickone" data-pickone="${s.id}"
+        title="Select this one" aria-label="Select ${esc(s.title)}"></button>`}
       ${s.rating !== null ? `<div class="score">${esc(fmt(s.rating))}</div>` : ''}
       <div class="foot">
         <div class="ch">${mark}</div>${S.picking ? '' : plus}
@@ -1371,8 +1429,9 @@ const wordRow = (axis, cur, kind) => (wordsOf(kind)[axis] || []).map(v =>
    solves: over half of Hold was already sorted before this app existed, he can
    see which half from the covers, and no column records it. Looking at thirty
    at once and ticking eight is the gesture that matches knowing. */
-function setPicking(on){
+function setPicking(on, why){
   S.picking = on;
+  S.pickFor = on ? (why || null) : null;
   S.picked.clear();
   if (on){ S.view = 'shelf'; S.solo = null; closeSheet(); }
   render();
@@ -1425,7 +1484,13 @@ function fillBulk(){
   document.body.classList.toggle('selecting', S.picking);
   if (!S.picking) return;
   const n = S.picked.size;
-  $('#bulk-n').textContent = `${n} selected`;
+  // Group Edit opens this bar with nothing ticked, which is a bar of nine dead
+  // controls and no instruction. So the counter carries the instruction until
+  // there is a count to carry instead, and Edit one by one — the thing he
+  // pressed Group Edit to reach — is the lit one.
+  $('#bulk-n').textContent = n ? `${n} selected`
+    : S.pickFor === 'edit' ? 'Pick a group, or All' : '0 selected';
+  $('#bulk-walk').classList.toggle('go', S.pickFor === 'edit');
   for (const id of ['#bulk-status','#bulk-pub','#bulk-word','#bulk-seen',
                     '#bulk-unseen','#bulk-mode','#bulk-walk'])
     $(id).disabled = !n;
@@ -1460,8 +1525,8 @@ async function bulkApply(fields, opts = {}){
 
   // Every field the action writes, as it stood on every row, before it writes
   // any of them. All of them and not just the first: moving a shelf also marks
-  // the rows reviewed, and an Undo that put the shelf back while leaving them
-  // marked would take them out of the review queue he just undid putting them
+  // the rows checked, and an Undo that put the shelf back while leaving them
+  // marked would take them out of the queue he just undid putting them
   // through. Undo means undo.
   const keys = Object.keys(fields);
   const readBack = (x, k) => k === 'reviewed' ? !!x.checked : (x[k] ?? '');
@@ -1525,7 +1590,7 @@ const gapsOf = x => GAPS.filter(([, blank]) => blank(x)).map(([f]) => f);
 function enterSolo(){
   S.picking = false; S.picked.clear();
   closeSheet();
-  // Everything on the shelf he has not been through. Already-reviewed rows are
+  // Everything on the shelf he has not been through. Already-checked rows are
   // held back, which is the entire purpose of the mark: the counter goes down
   // and stays down. Unless he has asked for them by name in the drawer, in
   // which case the filter is the instruction.
@@ -1543,60 +1608,85 @@ const soloNow = () => S.solo && byId(S.solo.queue[S.solo.at]);
 const promoteTo = () => S.shelf === 'Hold' ? 'Current'
                       : S.shelf === 'Current' ? 'Finished' : 'Hold';
 
-/* One card, one pass, two buttons. There were two modes here and a mode
-   switch to pick between them, which was one screen too clever: "re-file" and
-   "fill in" are not two jobs, they are the same card being looked at. So the
-   card shows the series, shows whatever it is missing so it can be filled in
-   on the spot, and the two buttons both commit and advance.
+/* One card, one pass, one gesture. There were two modes here and a mode switch
+   to pick between them, which was one screen too clever: "re-file" and "fill
+   in" are not two jobs, they are the same card being looked at.
+
+   The shape is the one every swipe-through-a-pile app landed on, and for a
+   reason that applies exactly here: the cover *is* the question. A 150px
+   thumbnail in a panel, with a column of fields beside it and a pair of buttons
+   under it, is a form about a book — and the answer to "should this still be
+   dropped" arrives a second after seeing the art, long before any of the text
+   is read. So: the cover at full size, what little else the verdict depends on
+   printed over the foot of it, and the two directions written underneath.
+
+   No buttons across the bottom. The gesture is the interface, so what is under
+   the card is a legend and not a toolbar: it says which way does what, it is
+   pressable because a mouse has no swipe, and it stays quiet because reading it
+   is something he does once.
 
    No Skip. A queue you can decline to answer is a queue that never shortens,
    and "leave it where it is" is already the answer for anything he does not
    want to move — it is a decision, and it records that he made one.
 
-   Two buttons and no more. The other three shelves were a row of pills under
-   the verdict, offered because the code could; in practice the question on a
-   Dropped shelf is Dropped or Hold, and the other three were noise under it.
-   Anything that really belongs in Finished can be opened on the shelf. */
+   Two directions and no more. The other three shelves were a row of pills
+   under the verdict, offered because the code could; in practice the question
+   on a Dropped shelf is Dropped or Hold, and the other three were noise under
+   it. Anything that really belongs in Finished can be opened on the shelf. */
+
+/* The shelf markers are `--current`, `--hold` and so on — the status name,
+   lowercased. Which means a stamp and a legend can both be told what colour
+   they are by naming the shelf they are about, and can never disagree with the
+   tab dot for it. */
+const tone = v => `var(--${String(v).toLowerCase()},var(--ink-2))`;
+/* Six is the most a cover can carry before the words are taller than the
+   title. The rest are in the sheet, where there is room to read them. */
+const SOLO_WORDS = 6;
+
 function renderSolo(){
   const q = S.solo;
   const s = soloNow();
-  const left = s ? (s.status || 'place') : '';
-  const right = promoteTo();
   if (!s){
     $('#main').innerHTML = `<div class="solo">
-      <div class="solo-head"><h2 class="solo-h">Review</h2>
+      <div class="solo-head"><h2 class="solo-h">Group Sort</h2>
         <span class="count">${q.queue.length ? 'done' : 'nothing waiting'}</span></div>
       <div class="empty">${q.queue.length
         ? `That is all ${q.queue.length} of them.`
-        : 'Nothing left to review on this shelf.'}</div></div>`;
+        : 'Nothing left to sort on this shelf.'}</div></div>`;
     return;
   }
+  const left = s.status || 'place';
+  const right = promoteTo();
+  const words = [...s.setting, ...s.genre];
+  const chips = words.slice(0, SOLO_WORDS).map(w => `<span>${esc(w)}</span>`).join('')
+    + (words.length > SOLO_WORDS ? `<span>+${words.length - SOLO_WORDS}</span>` : '');
+  const meta = [s.type, s.pub].filter(Boolean).join(' · ');
+  const gaps = soloGaps(s);
   $('#main').innerHTML = `<div class="solo">
     <div class="solo-head">
-      <h2 class="solo-h">Review</h2>
+      <h2 class="solo-h">Group Sort</h2>
       <span class="count">${q.at + 1} of ${q.queue.length}</span>
     </div>
     <div class="tri" id="tri">
-      <div class="tri-say l">${esc(left)}</div>
-      <div class="tri-say r">${esc(right)}</div>
-      <div class="tri-top">
-        <div class="tri-art">${s.coverId
-          ? `<img src="/cover/${s.coverId}" alt="">`
-          : `<div class="fallback" style="--h:${hue(s.title)}">${esc(s.title)}</div>`}</div>
-        <div class="tri-id">
-          <h2>${esc(s.title)}</h2>
-          <div class="sub"><span>${esc([s.type, s.pub, s.status].filter(Boolean).join(' · '))}</span></div>
-          <div class="sub"><span>${esc(soloProgress(s))}</span></div>
-          <div class="tri-words">${[...s.setting, ...s.genre]
-            .map(w => `<span>${esc(w)}</span>`).join('') || '<span>no words yet</span>'}</div>
-        </div>
+      <div class="tri-art">${s.coverId
+        ? `<img src="/cover/${s.coverId}" alt="">`
+        : `<div class="fallback" style="--h:${hue(s.title)}">${esc(s.title)}</div>`}</div>
+      <div class="tri-say l" style="--tone:${tone(left)}">${esc(left)}</div>
+      <div class="tri-say r" style="--tone:${tone(right)}">${esc(right)}</div>
+      <div class="tri-info">
+        <h2>${esc(s.title)}</h2>
+        <div class="tri-line">${meta ? `<span>${esc(meta)}</span>` : ''}
+          <em>${esc(soloProgress(s))}</em></div>
+        <div class="tri-words">${chips || '<span>no words yet</span>'}</div>
       </div>
-      ${soloGaps(s)}
     </div>
-    <div class="verdict">
-      <button class="btn keep" data-file="">Leave in ${esc(left)}</button>
-      <button class="btn move" data-file="${esc(right)}">Move to ${esc(right)}</button>
+    <div class="swipes">
+      <button class="swipe l" data-file="" style="--tone:${tone(left)}">
+        <b>← Leave in ${esc(left)}</b><span>swipe left</span></button>
+      <button class="swipe r" data-file="${esc(right)}" style="--tone:${tone(right)}">
+        <b>Move to ${esc(right)} →</b><span>swipe right</span></button>
     </div>
+    ${gaps ? `<div class="fills">${gaps}</div>` : ''}
   </div>`;
   bindDrag();
   loadShots(s);
@@ -2152,6 +2242,15 @@ document.addEventListener('click', async ev => {
   const bumpBtn = hit('[data-bump]');
   if (bumpBtn){ ev.stopPropagation(); return bump(bumpBtn.dataset.bump); }
 
+  // The circle that hover draws on a card. Before the [data-open] branch, and
+  // stopping there, because it sits inside the plate — which opens the sheet.
+  const one = hit('[data-pickone]');
+  if (one){
+    ev.stopPropagation();
+    setPicking(true);
+    return togglePick(one.dataset.pickone);
+  }
+
   const opener = hit('[data-open]');
   if (opener && opener.dataset.open){
     // Ctrl, Cmd or Shift on a card picks it instead of opening it, turning
@@ -2179,14 +2278,6 @@ document.addEventListener('click', async ev => {
 
   const tick = hit('[data-tick]');
   if (tick) return togglePick(tick.dataset.tick, ev);
-
-  // Start a run over the whole shelf from the top of it.
-  if (hit('[data-walk-shelf]')){
-    const order = shown().map(x => x.id);
-    if (!order.length) return;
-    openSheet(order[0], order);
-    return render();
-  }
 
   const verdict = hit('[data-file]');
   if (verdict) return soloFile(verdict.dataset.file);
@@ -2377,7 +2468,10 @@ document.addEventListener('click', ev => {
   const act = ev.target.closest('[data-act]');
   if (!act) return;
   if (act.dataset.act === 'filter') $('#drawer').classList.toggle('open');
-  if (act.dataset.act === 'pick') setPicking(!S.picking);
+  // Group Edit is editing a selection and there is no selection yet, so the
+  // button is the way into making one, with the bar already saying so. Pressing
+  // it again while it is lit is the way back out.
+  if (act.dataset.act === 'edit') setPicking(!S.picking, 'edit');
   if (act.dataset.act === 'new') $('#dlg').showModal();
   if (act.dataset.act === 'home') goTo(null);
 });
@@ -2421,7 +2515,7 @@ $('#bulk-mode').addEventListener('click', () => {
   fillBulk();
 });
 $('#bulk-seen').addEventListener('click', () =>
-  bulkApply({ reviewed: true }, { say: `${S.picked.size} marked reviewed` }));
+  bulkApply({ reviewed: true }, { say: `${S.picked.size} marked checked` }));
 $('#bulk-unseen').addEventListener('click', () =>
   bulkApply({ reviewed: false }, { say: `${S.picked.size} unmarked` }));
 $('#bulk-status').addEventListener('change', e => {
@@ -2431,7 +2525,7 @@ $('#bulk-status').addEventListener('change', e => {
   // the difference between this and the Publication menu below, which records
   // a fact about the book rather than a judgement he has just made.
   bulkApply({ status: v, reviewed: true },
-            { say: `${S.picked.size} moved to ${v} and marked reviewed` });
+            { say: `${S.picked.size} moved to ${v} and marked checked` });
   e.target.value = '';
 });
 $('#bulk-pub').addEventListener('change', e => {

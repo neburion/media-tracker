@@ -237,7 +237,7 @@ Whether or not anything is on it. It used to fall back to All when Current was
 empty, which on a Reading shelf of 974 rows with not one of them Current meant
 every session opened on all 974 — the pile, not the thing you are in the middle
 of. An empty Current is the honest answer to *what am I reading*, and it is a
-shelf the review queue fills.
+shelf Group Sort fills.
 
 ### Shelves are Current and Finished
 
@@ -317,7 +317,7 @@ filed under Dropped. Opening 672 sheets is not a way to go through that, so
 there are two ways that are, and they are two because there are two different
 problems.
 
-### The reviewed mark
+### The checked mark
 
 `series.checked_at` — null until you have been through the row yourself, and
 nothing else in the database can stand in for it.
@@ -334,7 +334,7 @@ covers in — after which "has both" means "the queue touched it" rather than "I
 decided about it". So it is recorded.
 
 It is deliberately **not** `updated_at`. That column means the series changed;
-this one means you looked. Marking two hundred rows reviewed in one gesture must
+this one means you looked. Marking two hundred rows checked in one gesture must
 not reorder a shelf whose default sort is *recently touched*, so
 `update_series()` holds `reviewed` out of that stamp — and out of the reindex,
 since nothing about it is searchable.
@@ -345,8 +345,19 @@ Nothing was seeded. Every row starts unmarked.
 
 The plate becomes a checkbox and one bar applies one decision to everything
 ticked: shelf, publication status, add or remove a word, mark or unmark
-reviewed. It composes with the filter drawer, so *filter to Hold* → **All
-shown** → one menu is four taps for two hundred rows.
+checked. It composes with the filter drawer, so *filter to Hold* → **All** →
+one menu is four taps for two hundred rows.
+
+**The way in is on the card, not in the toolbar.** Hovering a cover draws an
+empty circle in its top-left corner; clicking it turns the mode on with that
+card already ticked. An affordance belongs on the thing it acts on, and the
+unlabelled square this replaced was in a row of five other unlabelled squares —
+a feature nobody finds. The checked ✓ badge wants the same corner, so it
+fades out for as long as the pointer is on the card.
+
+Nothing hovers on a phone, so the circle is not drawn there at all.
+**Group Edit** in the toolbar is the way in on a touch screen, and it lands in
+the same mode — see below.
 
 **Modifiers behave the way they do in every file list.** Ctrl or Cmd on a card
 toggles it; Shift extends from the last card touched to this one. The range is
@@ -370,7 +381,7 @@ you are working down is the difference between the mode being usable and being
 a trap. A shift-range does redraw once, because it changes many cards at once.
 
 Undo restores **every** field the action wrote, per row, grouped by the state
-each row came from. Moving a shelf also marks the rows reviewed; an Undo that
+each row came from. Moving a shelf also marks the rows checked; an Undo that
 put the shelf back while leaving them marked would quietly take them out of the
 queue it had just put them into.
 
@@ -382,7 +393,7 @@ what that series already has and then handed to `update_series()` as an
 ordinary axis write, so the per-tracker vocabulary and the reindex happen once,
 in the one place that knows how.
 
-### Walking the sheet, which is the main way
+### Group Edit, which is the main way
 
 The editor that opens when you click an entry now knows it is one of a run.
 It gains a pager — `‹ 12 of 670 ›` — and Save becomes **Save and next**.
@@ -394,12 +405,19 @@ that has just reordered itself is what made going through them impossible.
 
 The run is **the selection if there is one, the shelf as displayed otherwise** —
 filters, search and sort included, in display order, so *next* means the next
-one along the grid you were looking at rather than the next id. Two ways in:
+one along the grid you were looking at rather than the next id.
 
-- **Edit each one** on the banner above the grid, starting from the top.
-- **Edit one by one** in the select-mode bar, over whatever is ticked. Select
-  mode closes on the way: the run is a snapshot, so the ticks have done their
-  job and a grid still covered in them behind the sheet is noise.
+**Group Edit** — the pencil in the toolbar — is the way in. It does not open
+anything: it turns select mode on with nothing ticked and the bar reading *Pick
+a group, or All*, because editing several is editing a selection and there is
+no selection yet. **All** takes the shelf as displayed, which is what makes
+*filter to Hold, then edit every one of them* two taps. **Edit one by one** is
+the lit chip on that bar and opens the first of the run. Select mode closes on
+the way: the run is a snapshot, so the ticks have done their job and a grid
+still covered in them behind the sheet is noise.
+
+Opening an ordinary card still starts a run over the whole shelf, unticked and
+unasked — the pager is there whether or not you went looking for it.
 
 The arrows **save on the way past**, and so does Alt+← / Alt+→ — Alt rather than
 bare arrows, because half this sheet is number fields where an arrow already
@@ -411,43 +429,62 @@ back in rather than rebuilt after each save: the row you just edited may have
 left the shelf it was built from, and re-deriving would shuffle everything
 under you mid-pass.
 
-Saving inside a run marks the row reviewed. Opening something and saving it *is*
-having been through it, and it is what makes the count on the banner fall.
+Saving inside a run marks the row checked. Opening something and saving it *is*
+having been through it, and it is what takes the row out of the Group Sort
+queue.
 
 Each step is one `POST /api/update` and a local splice of the returned row. It
 used to re-fetch the whole library after every save, which is 200 KB to learn
 that one row changed — tolerable once, not 670 times.
 
-### A quick pass, for when the only question is the shelf
+### Group Sort, for when the only question is the shelf
 
-One series, nothing else on screen, **two buttons**: *Leave in Dropped* and
-*Move to Hold*, or a drag, or ← and → at a desk. This is the other half, for a
-shelf of 672 where the answer is usually obvious from the cover and opening the
-editor for it would be four taps too many.
+One series, nothing else on screen, and one gesture: **swipe left to leave it
+where it is, swipe right to move it**. This is the other half, for a shelf of
+672 where the answer is usually obvious from the cover and opening the editor
+for it would be four taps too many. A drag with the mouse does the same, and so
+do ← and → at a desk.
 
-Both are reached from a labelled bar above the grid saying how many are waiting.
-They were unlabelled squares in a row of five other unlabelled squares in the
-toolbar, which is a feature nobody finds — and didn't. The bar is not drawn once
-the shelf is clear.
+**The cover is the card.** It was a 150px thumbnail in a panel with a column of
+fields beside it and a pair of buttons underneath — a form about a book. But the
+picture is the question: the answer to *should this still be dropped* arrives a
+second after seeing the art, long before any of the text is read. So the cover
+fills the card at `min(58dvh, 560px)`, sized off the viewport rather than the
+column so that the card and what the two directions mean are both on screen
+without a scroll, and the title, type, publication status, progress and up to
+six words are printed over the foot of it on a gradient.
 
-The card shows the series and, underneath it, **whatever that series is
-missing**, so a cover or a rating or a publication status can be filled in on
-the spot. Whichever button you press commits the blanks and the verdict in one
-write. A field you have already answered is not a question and is not drawn.
+**Both directions are written down underneath**, in the colour of the shelf
+each one names — the same `--<status>` token the tab dots and the stats bars
+resolve, so the word and the marker can never disagree. A swipe is not
+discoverable and guessing wrong costs a row. The legend is pressable, which is
+what a swipe is at a desk with no trackpad, but it is styled as a legend and
+not a toolbar: reading it is something you do once.
+
+Whatever the series is **missing** sits under the legend rather than on the
+cover, so a cover or a rating or a publication status can be filled in on the
+spot. Either direction commits the blanks and the verdict in one write. A field
+you have already answered is not a question and is not drawn.
 
 **There is no Skip.** A queue you can decline to answer is a queue that never
 shortens, and *leave it where it is* is already the answer for anything you do
 not want to move: it is a decision, and it records that you made one.
 
-**Two buttons and no more.** The other three shelves were a row of pills under
-the verdict, offered because the code could. On a Dropped shelf the question is
-Dropped or Hold; the rest was noise under it, and anything that really belongs
-in Finished can be opened on the shelf.
+**Two directions and no more.** The other three shelves were a row of pills
+under the verdict, offered because the code could. On a Dropped shelf the
+question is Dropped or Hold; the rest was noise under it, and anything that
+really belongs in Finished can be opened on the shelf.
+
+**No banner over the grid.** Both passes used to be announced by a slab above
+the shelf, because both of them were hiding behind unlabelled toolbar squares.
+They are reachable by name now — Group Sort in the dock, Group Edit in the
+toolbar — and a slab of chrome standing between you and the shelf on every
+single visit is a high price for a signpost.
 
 The queue is a snapshot taken on entry, built from whatever the shelf is
 currently showing, filters included, and then it stops listening. A queue that
 reshuffled itself every time a save changed a sort key would lose your place on
-every card. Reviewed rows are held back, which is the whole purpose of the mark:
+every card. Checked rows are held back, which is the whole purpose of the mark:
 the counter goes down and stays down.
 
 Cover art is fetched for the card on screen and **one** card ahead, no further.
