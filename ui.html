@@ -332,8 +332,13 @@ select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
 }
 
 /* ── shelf ──────────────────────────────────────────────────────────── */
+/* No width cap. A measure exists for prose, and a wall of covers is not
+   prose: capping this at 1500px left a wide panel with two hands of empty
+   margin and the same twelve entries per row it had at half the size. The
+   grid takes the screen; the panels that *are* prose (`.panel`, `.solo`)
+   keep their own measure and stay centred inside it. */
 main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
-  max(14px,env(safe-area-inset-left));max-width:1500px;margin:0 auto}
+  max(14px,env(safe-area-inset-left))}
 body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 body.selecting .fab{display:none}
 /* clear the dock, plus the home indicator on gesture-nav phones */
@@ -643,30 +648,33 @@ body.selecting .fab{display:none}
 .veil{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);
   opacity:0;pointer-events:none;transition:opacity .16s}
 .veil.open{opacity:1;pointer-events:auto}
-/* On a pointer this is a dialog in the middle of the screen, not a panel
+/* On a pointer this is a dialog over the middle of the screen, not a panel
    welded to the right edge. A drawer says "there is more of this app over
    here"; editing one series is not more of the shelf, it is a decision taken
-   about a single row, and the shape that says so is a card that comes up over
-   the middle with everything else dimmed behind it. It also stops the fields
-   being pinned to the far right of a wide monitor, a mouse-length away from
-   the cover you clicked. `max-height` rather than a fixed height so a short
-   entry is a short box — the body scrolls only once there is more than fits. */
+   about a single row, and the shape that says so is a card over the whole
+   screen with the shelf dimmed behind it.
+
+   Sized by an inset rather than a width, because there is no correct number
+   of pixels for a form — the margin is the constant, and the dialog is
+   everything else. A 32px frame is enough to see that the shelf is still
+   under there and nothing like enough to read as a column floating in the
+   middle of a 4K panel. */
 .sheet{
   position:fixed;z-index:51;background:var(--card);display:flex;
   flex-direction:column;box-shadow:var(--shadow);
-  top:50%;left:50%;width:min(480px,calc(100vw - 48px));
-  max-height:min(86vh,820px);
-  max-height:min(86dvh,820px);
+  top:32px;right:32px;bottom:32px;left:32px;
   border:1px solid var(--rule);border-radius:var(--r-xl);overflow:hidden;
   /* Closed is out of the tab order, not merely transparent, and `visibility`
      is delayed by the length of the fade so it does not blink out mid-way. */
   opacity:0;visibility:hidden;pointer-events:none;
-  transform:translate(-50%,-50%) scale(.97);
+  transform:scale(.98);
   transition:opacity .16s,transform .2s cubic-bezier(.3,.8,.4,1),
              visibility 0s .2s;
 }
 .sheet.open{opacity:1;visibility:visible;pointer-events:auto;
-  transform:translate(-50%,-50%);transition-delay:0s}
+  transform:none;transition-delay:0s}
+/* A tablet-ish window has no room to give a 32px frame away twice over. */
+@media (max-width:900px){.sheet{top:16px;right:16px;bottom:16px;left:16px}}
 /* A phone has no middle to speak of: a centred card there is a bottom sheet
    with wasted margins, so it stays the sheet it was, up from the bottom edge
    and back down to it. */
@@ -715,6 +723,48 @@ body.selecting .fab{display:none}
 .pager .step:hover:not(:disabled){border-color:var(--a7);color:var(--a11)}
 .pager .step:disabled{opacity:.35}
 .sheet-body{flex:1;overflow-y:auto;padding:16px 14px 24px}
+/* A dialog the size of the screen holds ten short fields, and a single file
+   of them down the left would be a ribbon with an acre of nothing beside it.
+   So the cover takes the space instead — it is the one thing here that gets
+   better the bigger it is, and the shelf already knows that: this is the same
+   move the one-at-a-time screen makes with `.tri`.
+
+   The art column is sized off the viewport HEIGHT, not the width: at 2/3 it
+   wants roughly four fifths of the body's height, and 42vh × 1.5 is that with
+   room to spare. Widths are what is left, and the fields flow into as many
+   columns as fit — `column-width` rather than a count, so one rule covers a
+   laptop at two columns and the big panel at three.
+
+   Both dimensions gate it. A wide, short window has no height to give the
+   cover, and a hero that does not fit pushes the form below the fold: the
+   editor would open on a picture you have to scroll past to change anything.
+   Under either threshold it is the plain column of fields with the cover back
+   to a thumbnail in the head. */
+.art{display:none}
+@media (min-width:900px) and (min-height:740px){
+  .sheet-body{padding:24px 26px 28px;
+    display:grid;grid-template-columns:clamp(200px,42vh,620px) minmax(0,900px);
+    gap:48px;align-items:start;justify-content:center}
+  .art{display:block;position:relative;aspect-ratio:2/3;overflow:hidden;
+    border-radius:var(--r-lg);border:1px solid var(--rule-2);
+    background:var(--sunk)}
+  .art img{width:100%;height:100%;object-fit:cover;display:block}
+  .art .fallback{font-size:19px;line-height:1.3;padding:24px}
+  .fields{column-width:360px;column-gap:38px}
+  /* Keep a label with the control it names, and the two halves of a progress
+     field with each other. */
+  .fields>*{break-inside:avoid}
+  /* The cover is in the body now, at a size worth looking at; the stamp of it
+     in the head would just be the same picture twice. */
+  .sheet-top .thumb{display:none}
+  .sheet-top{padding:20px 22px 18px}
+  .sheet-top h2{font-size:21px}
+  /* Save stretched across a whole screen is a landing strip. The pair sits at
+     the right where a dialog's buttons live, with Remove left behind. */
+  .sheet-foot{padding:14px 22px}
+  .sheet-foot .btn.danger{margin-right:auto}
+  .sheet-foot .btn.primary{flex:none;min-width:190px}
+}
 .field{margin-bottom:18px}
 .field>.lbl{display:block;margin-bottom:6px}
 .field input[type=text],.field input[type=number],.field select,.field textarea{
@@ -2055,6 +2105,10 @@ function openSheet(id, queue){
               aria-label="Next, saving this one">›</button>
     </div>` : ''}
     <div class="sheet-body">
+      <div class="art">${s.coverId
+        ? `<img src="/cover/${s.coverId}" alt="">`
+        : `<div class="fallback" style="--h:${hue(s.title)}">${esc(s.title)}</div>`}</div>
+      <div class="fields">
       <div id="e-progress">${progressField(s, s.type)}</div>
 
       <div class="field">
@@ -2118,6 +2172,7 @@ function openSheet(id, queue){
           s.lastRead ? `, most recently ${esc(ago(s.lastRead))}` : ''}`
           : 'No progress recorded yet'}
       </p>
+      </div>
     </div>
     <div class="sheet-foot">
       <button class="btn danger" data-trash>Remove</button>
