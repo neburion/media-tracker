@@ -643,23 +643,51 @@ body.selecting .fab{display:none}
 .veil{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);
   opacity:0;pointer-events:none;transition:opacity .16s}
 .veil.open{opacity:1;pointer-events:auto}
+/* On a pointer this is a dialog in the middle of the screen, not a panel
+   welded to the right edge. A drawer says "there is more of this app over
+   here"; editing one series is not more of the shelf, it is a decision taken
+   about a single row, and the shape that says so is a card that comes up over
+   the middle with everything else dimmed behind it. It also stops the fields
+   being pinned to the far right of a wide monitor, a mouse-length away from
+   the cover you clicked. `max-height` rather than a fixed height so a short
+   entry is a short box — the body scrolls only once there is more than fits. */
 .sheet{
   position:fixed;z-index:51;background:var(--card);display:flex;
   flex-direction:column;box-shadow:var(--shadow);
-  top:0;right:0;bottom:0;width:min(440px,100%);
-  border-left:1px solid var(--rule);
-  transform:translateX(101%);transition:transform .2s cubic-bezier(.3,.8,.4,1);
+  top:50%;left:50%;width:min(480px,calc(100vw - 48px));
+  max-height:min(86vh,820px);
+  max-height:min(86dvh,820px);
+  border:1px solid var(--rule);border-radius:var(--r-xl);overflow:hidden;
+  /* Closed is out of the tab order, not merely transparent, and `visibility`
+     is delayed by the length of the fade so it does not blink out mid-way. */
+  opacity:0;visibility:hidden;pointer-events:none;
+  transform:translate(-50%,-50%) scale(.97);
+  transition:opacity .16s,transform .2s cubic-bezier(.3,.8,.4,1),
+             visibility 0s .2s;
 }
-.sheet.open{transform:none}
+.sheet.open{opacity:1;visibility:visible;pointer-events:auto;
+  transform:translate(-50%,-50%);transition-delay:0s}
+/* A phone has no middle to speak of: a centred card there is a bottom sheet
+   with wasted margins, so it stays the sheet it was, up from the bottom edge
+   and back down to it. */
 @media (max-width:640px){
-  .sheet{top:auto;left:0;width:100%;
-    border-left:0;border-top:0;border-radius:var(--r-xl) var(--r-xl) 0 0;
+  .sheet{top:auto;right:0;bottom:0;left:0;width:100%;
+    border:0;border-radius:var(--r-xl) var(--r-xl) 0 0;
     transform:translateY(101%);
+    max-height:none;
+    /* It leaves and arrives by moving, not by fading: the edge it came from
+       is the whole point, and a sheet that also dissolves loses it. */
+    opacity:1;
+    /* The clip is for the popup's four rounded corners, where the footer's
+       own background would otherwise square off the bottom two. Down here
+       only the top corners are round and nothing is painted into them. */
+    overflow:visible;
     /* dvh tracks the shrinking/growing browser toolbar; vh does not, and a
        sheet sized in vh has its footer under the address bar half the time. */
     height:min(92vh,860px);
     height:min(92dvh,860px);
   }
+  .sheet.open{transform:none}
 }
 .sheet-top{display:flex;align-items:flex-start;gap:12px;padding:16px 16px 14px;
   border-bottom:1px solid var(--rule-2);position:relative}
