@@ -10,12 +10,12 @@
   ],
   "state": true,
   "secrets": [
-    "password"
+    "password",
+    "username"
   ],
   "env": {
     "MT_HOST": "0.0.0.0",
     "MT_PORT": "$PORT",
-    "MT_USERNAME": "tracker",
     "MT_DB": "$STATE_DIR/media.db",
     "MT_CACHE": "$STATE_DIR"
   },

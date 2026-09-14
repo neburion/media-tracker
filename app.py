@@ -9,8 +9,9 @@ ui.html, and caches cover artwork on disk.
     python3 app.py --stats         # print the shelf and exit, no server
     python3 app.py --warm-covers   # fetch every cover into the cache and exit
 
-Auth is a login screen at /login, enabled whenever a password is present
-(systemd credential 'password', or $MT_PASSWORD). Binding anything other than
+Auth is a login screen at /login, enabled whenever a password is present. Both
+halves of the login are systemd credentials ('username' and 'password', or
+$MT_USERNAME and $MT_PASSWORD in a checkout). Binding anything other than
 loopback without one is refused — see main(). Logging in sets a signed cookie
 good for a month, so the password is typed once rather than once per browser
 session. Basic credentials are still accepted for scripts and curl, but a
@@ -78,17 +79,28 @@ SEP = "\x1f"          # what v_series joins tags with
 # Same gate as the Elden Ring tracker, for the same reason: this is reachable
 # from other machines and every POST here edits or deletes real rows.
 
-def _load_password():
+def _credential(name, env, fallback=""):
+    """A systemd credential by name, or the env var a checkout can set instead.
+
+    Both halves of the login come through here. The username used to be an
+    $MT_USERNAME in app.json, in the clear, on the grounds that a username is
+    not a secret — but that is only true when there are users to tell apart.
+    There is one login here and it is an admin login, so a username published
+    beside the service is just the first half of the credential given away.
+    It is a sops secret now, delivered the same way the password is.
+    """
     creds = os.environ.get("CREDENTIALS_DIRECTORY")
     if creds:
-        p = Path(creds) / "password"
+        p = Path(creds) / name
         if p.exists():
             return p.read_text().strip()
-    return (os.environ.get("MT_PASSWORD") or "").strip()
+    return (os.environ.get(env) or fallback).strip()
 
 
-PASSWORD = _load_password()
-USERNAME = os.environ.get("MT_USERNAME", "tracker")
+PASSWORD = _credential("password", "MT_PASSWORD")
+# The fallback is for a checkout: no credentials directory, nothing to log in
+# to, and a name to put in the form while developing against loopback.
+USERNAME = _credential("username", "MT_USERNAME", "tracker")
 AUTH_ON = bool(PASSWORD)
 
 RATE_WINDOW = 3600

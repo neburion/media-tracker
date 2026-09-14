@@ -1020,14 +1020,22 @@ cannot get in each other's way, and a restart mid-search costs nothing.
 
 ## Security
 
-A login screen at `/login`, on whenever a password is present — the systemd
-credential `password` (the `media-tracker-password` sops secret in
-`secrets/personal-server.yaml`) or `$MT_PASSWORD`. Without one the app refuses
-to bind anything but loopback, so a misconfigured deploy fails to start rather
-than putting a writable API on the network. The username is `tracker` and lives
-in `app.json` as `MT_USERNAME`, since it is not a secret. Failed attempts are rate-limited to
-20 per hour per client IP, read from `CF-Connecting-IP` so the tunnel does not
-bucket the whole internet into one key.
+A login screen at `/login`, on whenever a password is present. Both halves of
+the login are systemd credentials — the `media-tracker-username` and
+`media-tracker-password` sops secrets in `secrets/personal-server.yaml`,
+declared by `secrets` in `app.json` and delivered to
+`$CREDENTIALS_DIRECTORY`; a checkout can set `$MT_USERNAME` and `$MT_PASSWORD`
+instead. Without a password the app refuses to bind anything but loopback, so a
+misconfigured deploy fails to start rather than putting a writable API on the
+network.
+
+The username was `MT_USERNAME` in the clear until the login became a page,
+on the usual reasoning that a username is not a secret. That holds where there
+are users to tell apart. Here there is one login, it is an admin login, and a
+name published beside the service is simply the first half of the credential
+handed over — so it is encrypted like the other half. Failed attempts are
+rate-limited to 20 per hour per client IP, read from `CF-Connecting-IP` so the
+tunnel does not bucket the whole internet into one key.
 
 It is a page and not the browser's credential popup, which is what a `401` with
 `WWW-Authenticate: Basic` gets you: a grey modal over a blank tab, titled with
