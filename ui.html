@@ -654,27 +654,30 @@ body.selecting .fab{display:none}
    about a single row, and the shape that says so is a card over the whole
    screen with the shelf dimmed behind it.
 
-   Sized by an inset rather than a width, because there is no correct number
-   of pixels for a form — the margin is the constant, and the dialog is
-   everything else. A 32px frame is enough to see that the shelf is still
-   under there and nothing like enough to read as a column floating in the
-   middle of a 4K panel. */
+   Sized as a fraction of the screen rather than in pixels, because there is
+   no correct number of pixels for a form: 480px was a postage stamp on a 4K
+   panel and a 32px inset was the screen with a picture frame drawn on it.
+   Seven tenths of each axis is the middle of those — plainly a dialog, with
+   the shelf still legible around it, and it holds that proportion whatever
+   the window is. The floor keeps a small window from shrinking it into the
+   card it used to be. */
 .sheet{
   position:fixed;z-index:51;background:var(--card);display:flex;
   flex-direction:column;box-shadow:var(--shadow);
-  top:32px;right:32px;bottom:32px;left:32px;
+  top:50%;left:50%;
+  width:max(70vw,min(560px,100vw - 32px));
+  height:max(70vh,min(560px,100vh - 32px));
+  height:max(70dvh,min(560px,100dvh - 32px));
   border:1px solid var(--rule);border-radius:var(--r-xl);overflow:hidden;
   /* Closed is out of the tab order, not merely transparent, and `visibility`
      is delayed by the length of the fade so it does not blink out mid-way. */
   opacity:0;visibility:hidden;pointer-events:none;
-  transform:scale(.98);
+  transform:translate(-50%,-50%) scale(.98);
   transition:opacity .16s,transform .2s cubic-bezier(.3,.8,.4,1),
              visibility 0s .2s;
 }
 .sheet.open{opacity:1;visibility:visible;pointer-events:auto;
-  transform:none;transition-delay:0s}
-/* A tablet-ish window has no room to give a 32px frame away twice over. */
-@media (max-width:900px){.sheet{top:16px;right:16px;bottom:16px;left:16px}}
+  transform:translate(-50%,-50%);transition-delay:0s}
 /* A phone has no middle to speak of: a centred card there is a bottom sheet
    with wasted margins, so it stays the sheet it was, up from the bottom edge
    and back down to it. */
@@ -729,11 +732,14 @@ body.selecting .fab{display:none}
    better the bigger it is, and the shelf already knows that: this is the same
    move the one-at-a-time screen makes with `.tri`.
 
-   The art column is sized off the viewport HEIGHT, not the width: at 2/3 it
-   wants roughly four fifths of the body's height, and 42vh × 1.5 is that with
-   room to spare. Widths are what is left, and the fields flow into as many
-   columns as fit — `column-width` rather than a count, so one rule covers a
-   laptop at two columns and the big panel at three.
+   The art column is sized off the viewport HEIGHT, not the width, because
+   height is what constrains it: at 2/3 the cover is half again as tall as it
+   is wide, and what it has to fit inside is seven tenths of the screen less
+   the head, the foot and the padding. `45vh - 140px` is that sum solved for
+   the width, and it lands just inside the body at every height from a 740px
+   window to a 4K panel. Widths are what is left, and the fields flow into as
+   many columns as fit — `column-width` rather than a count, so one rule
+   covers a laptop at two columns and the big panel at three.
 
    Both dimensions gate it. A wide, short window has no height to give the
    cover, and a hero that does not fit pushes the form below the fold: the
@@ -742,15 +748,25 @@ body.selecting .fab{display:none}
    to a thumbnail in the head. */
 .art{display:none}
 @media (min-width:900px) and (min-height:740px){
-  .sheet-body{padding:24px 26px 28px;
-    display:grid;grid-template-columns:clamp(200px,42vh,620px) minmax(0,900px);
-    gap:48px;align-items:start;justify-content:center}
+  .sheet-body{padding:20px 24px 22px;
+    display:grid;
+    grid-template-columns:clamp(180px,calc(45vh - 140px),520px) minmax(0,900px);
+    gap:32px;align-items:start;justify-content:center}
   .art{display:block;position:relative;aspect-ratio:2/3;overflow:hidden;
     border-radius:var(--r-lg);border:1px solid var(--rule-2);
     background:var(--sunk)}
   .art img{width:100%;height:100%;object-fit:cover;display:block}
   .art .fallback{font-size:19px;line-height:1.3;padding:24px}
-  .fields{column-width:360px;column-gap:38px}
+  /* 280px is the narrowest a pill row stays readable at, and it is picked
+     against the tightest window that still gets this layout: at 1280×800 the
+     dialog is 896 wide, the cover takes 220 of it, and what is left is 596 —
+     two columns and their gutter to the pixel. A wider column would silently
+     collapse the form back to one file down the right of a cover. */
+  .fields{column-width:280px;column-gap:30px}
+  /* 18px of air under every field is right when they are stacked in one
+     column and you are scrolling past them. Side by side in a box that is
+     trying to show the lot at once, it is four fields' worth of nothing. */
+  .fields .field{margin-bottom:14px}
   /* Keep a label with the control it names, and the two halves of a progress
      field with each other. */
   .fields>*{break-inside:avoid}
