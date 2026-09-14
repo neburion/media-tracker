@@ -9,10 +9,12 @@ ui.html, and caches cover artwork on disk.
     python3 app.py --stats         # print the shelf and exit, no server
     python3 app.py --warm-covers   # fetch every cover into the cache and exit
 
-Auth is HTTP Basic, enabled whenever a password is present (systemd credential
-'password', or $MT_PASSWORD). Binding anything other than loopback without one
-is refused — see main(). A successful login also sets a signed cookie good for
-a month, so the password is typed once rather than once per browser session.
+Auth is a login screen at /login, enabled whenever a password is present
+(systemd credential 'password', or $MT_PASSWORD). Binding anything other than
+loopback without one is refused — see main(). Logging in sets a signed cookie
+good for a month, so the password is typed once rather than once per browser
+session. Basic credentials are still accepted for scripts and curl, but a
+browser is never challenged with one — see Handler._deny().
 
 The database is the store. It was imported once from an Obsidian vault by
 import-vault.py, and that vault is not consulted again: seed.json is a snapshot
@@ -91,6 +93,7 @@ AUTH_ON = bool(PASSWORD)
 
 RATE_WINDOW = 3600
 RATE_MAX = 20
+RATE_MSG = "Too many attempts. Try again in an hour."
 _rate_lock = threading.Lock()
 _failures = defaultdict(deque)
 
@@ -109,8 +112,27 @@ def _rate_fail(ip):
         _failures[ip].append(time.time())
 
 
+def check_credentials(user, pw, ip):
+    """(ok, reason). Constant-time compare; never leaks which half was wrong.
+
+    Both doors call this one: the login form and an Authorization header are
+    the same question asked twice, and a rate limit that only counted one of
+    them would be a rate limit with a way around it.
+    """
+    if not AUTH_ON:
+        return True, ""
+    if not _rate_ok(ip):
+        return False, "rate"
+    user_ok = hmac.compare_digest(user, USERNAME)
+    pw_ok = hmac.compare_digest(pw, PASSWORD)
+    if user_ok and pw_ok:
+        return True, ""
+    _rate_fail(ip)
+    return False, "bad"
+
+
 def check_auth(header, ip):
-    """(ok, reason). Constant-time compare; never leaks which half was wrong."""
+    """(ok, reason) for an Authorization header. Kept for scripts and curl."""
     if not AUTH_ON:
         return True, ""
     if not _rate_ok(ip):
@@ -123,10 +145,7 @@ def check_auth(header, ip):
     except Exception:
         _rate_fail(ip)
         return False, "bad"
-    if hmac.compare_digest(user, USERNAME) and hmac.compare_digest(pw, PASSWORD):
-        return True, ""
-    _rate_fail(ip)
-    return False, "bad"
+    return check_credentials(user, pw, ip)
 
 
 # ------------------------------------------------------------------ session
@@ -174,6 +193,151 @@ def check_session(value):
         return False, 0
     left = int(exp) - int(time.time())
     return left > 0, max(0, left)
+
+
+# -------------------------------------------------------------- login page
+#
+# A page, not the browser's credential popup. Basic Auth's 401 challenge draws
+# a grey modal over a blank white tab, with the origin as its title and no way
+# to style a word of it — on a phone, opening the installed app to that is not
+# obviously the same product. So nothing is ever challenged: the gate redirects
+# here instead, and this is a screen like any other, in the app's own palette
+# and typefaces. The print server at printer.azuresalt.app does the same thing
+# for the same reason.
+#
+# The fonts load because /fonts/ sits ahead of the gate already, and the PWA
+# tags are here so "add to home screen" still works from a logged-out launch.
+
+_LOGIN_HTML = r"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#111111">
+<title>Media Tracker</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/pwa/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/pwa/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Media">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<style>
+@font-face{font-family:Lit;src:url(/fonts/literata.woff2) format("woff2");
+  font-weight:400;font-display:swap}
+@font-face{font-family:Lit;src:url(/fonts/literata-semibold.woff2) format("woff2");
+  font-weight:600;font-display:swap}
+@font-face{font-family:Pub;src:url(/fonts/publicsans.woff2) format("woff2");
+  font-weight:400;font-display:swap}
+@font-face{font-family:Pub;src:url(/fonts/publicsans-medium.woff2) format("woff2");
+  font-weight:500;font-display:swap}
+
+/* The same Radix greys and iris the shelf is built from, so this reads as the
+   front door of that app rather than a generic auth page. */
+:root{
+  color-scheme:dark;
+  --paper:#111111; --card:#191919; --sunk:#222222;
+  --ink:#eeeeee; --ink-2:#b4b4b4; --ink-3:#8a8a8a;
+  --rule:#3a3a3a; --rule-2:#313131; --edge:#484848;
+  --a7:#4a4a95; --a9:#5b5bd6; --a10:#6e6ade; --a11:#b1a9ff;
+  --bad:#e5484d; --bad-bg:#3c181a; --bad-ink:#ff9592;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font:400 15px/1.5 Pub,system-ui,sans-serif;
+  display:flex; align-items:center; justify-content:center;
+  padding:24px; padding-bottom:max(24px,env(safe-area-inset-bottom));
+}
+form{
+  width:min(100%,340px); background:var(--card);
+  border:1px solid var(--rule); border-radius:14px; padding:28px 24px 24px;
+}
+h1{
+  margin:0; font:600 27px/1.2 Lit,Georgia,serif; letter-spacing:-.01em;
+  text-align:center;
+}
+.sub{
+  margin:6px 0 22px; text-align:center; color:var(--ink-3);
+  font-size:12.5px; letter-spacing:.08em; text-transform:uppercase;
+}
+label{display:block; margin:0 0 6px; font-size:12.5px; color:var(--ink-2)}
+input{
+  width:100%; margin:0 0 14px; padding:11px 12px;
+  background:var(--sunk); color:var(--ink);
+  border:1px solid var(--rule-2); border-radius:9px;
+  font:400 16px/1.2 Pub,system-ui,sans-serif;  /* 16px: iOS zooms below it */
+  -webkit-appearance:none; appearance:none;
+}
+input:hover{border-color:var(--edge)}
+input:focus{outline:none; border-color:var(--a7); box-shadow:0 0 0 3px #5b5bd633}
+button{
+  width:100%; margin-top:6px; padding:12px;
+  background:var(--a9); color:#fff; border:0; border-radius:9px;
+  font:500 15px/1 Pub,system-ui,sans-serif; cursor:pointer;
+}
+button:hover{background:var(--a10)}
+button:active{transform:translateY(1px)}
+.err{
+  margin:0 0 16px; padding:9px 11px; border-radius:9px;
+  background:var(--bad-bg); border:1px solid var(--bad);
+  color:var(--bad-ink); font-size:13px; text-align:center;
+}
+</style>
+</head>
+<body>
+<form method="post" action="/login">
+  <h1>Media Tracker</h1>
+  <p class="sub">__SUB__</p>
+  __ERR__
+  <input type="hidden" name="next" value="__NEXT__">
+  <label for="u">Username</label>
+  <input id="u" type="text" name="username" autocomplete="username"
+         autocapitalize="none" autocorrect="off" spellcheck="false" required>
+  <label for="p">Password</label>
+  <input id="p" type="password" name="password" autocomplete="current-password"
+         required>
+  <button type="submit">Open the shelf</button>
+</form>
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('/sw.js')
+    .catch(() => {}));
+}
+/* Focus the first empty field. A password manager that filled both should not
+   have the caret dropped back into its work. */
+addEventListener('DOMContentLoaded', () => {
+  const u = document.getElementById('u');
+  (u.value ? document.getElementById('p') : u).focus();
+});
+</script>
+</body>
+</html>
+"""
+
+
+def login_page(error="", nxt="/"):
+    """The screen itself. `nxt` is already validated by safe_next()."""
+    err = (f'<p class="err" role="alert">{html.escape(error)}</p>'
+           if error else "")
+    return (_LOGIN_HTML
+            .replace("__SUB__", "Sign in")
+            .replace("__ERR__", err)
+            .replace("__NEXT__", html.escape(nxt, quote=True))
+            .encode("utf-8"))
+
+
+def safe_next(raw):
+    """Where to land after logging in, reduced to somewhere on this server.
+
+    Anything else is an open redirect: a link to /login?next=https://elsewhere
+    would hand a phishing page the app's own domain to launch from.
+    """
+    if not raw or not raw.startswith("/") or raw.startswith("//"):
+        return "/"
+    return raw
 
 
 # ----------------------------------------------------------------- database
@@ -1322,31 +1486,59 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Set-Cookie", out)
         super().end_headers()
 
-    def authed(self):
+    def logged_in(self):
+        """(ok, reason) for this request. Answers nothing on its own.
+
+        Split from authed() because /login has to ask the same question without
+        a refusal being written out underneath it.
+        """
         ok, left = check_session(self.cookie(SESSION_COOKIE))
         if ok:
             if left < SESSION_REFRESH:
                 self._issue_session()
-            return True
+            return True, ""
 
         ok, why = check_auth(self.headers.get("Authorization"), self.client_ip())
         if ok:
             if AUTH_ON:
                 self._issue_session()
-            return True
-        if why == "rate":
-            self.send_response(429)
-            self.send_header("Retry-After", str(RATE_WINDOW))
-        else:
-            self.send_response(401)
-            self.send_header("WWW-Authenticate", 'Basic realm="Media Tracker"')
-        self.send_header("Content-Length", "0")
-        self.end_headers()
-        return False
+            return True, ""
+        return False, why
 
-    def _send(self, obj, code=200):
+    def authed(self):
+        ok, why = self.logged_in()
+        if not ok:
+            self._deny(why)
+        return ok
+
+    def _deny(self, why):
+        """Refuse, in the shape the caller can act on.
+
+        Never `WWW-Authenticate`. That header is the browser's cue to throw its
+        native credential modal over the page — grey, unstyleable, titled with
+        the bare origin — which is the one thing the login screen exists to
+        replace, and sending it even once puts the popup back. Basic
+        credentials are still *accepted* above; they are simply never asked
+        for. So a page navigation is sent to /login, and anything under /api/
+        gets JSON, because the fetch that asked for it can act on a 401 itself.
+        """
+        page = self.command == "GET" and not self.path.startswith("/api/")
+        if why == "rate":
+            hdrs = (("Retry-After", str(RATE_WINDOW)),)
+            if page:
+                return self._html(login_page(RATE_MSG, safe_next(self.path)),
+                                  429, hdrs)
+            return self._send({"error": RATE_MSG}, 429, hdrs)
+        if page:
+            return self._redirect(
+                "/login?" + urlencode({"next": safe_next(self.path)}))
+        return self._send({"error": "not logged in"}, 401)
+
+    def _send(self, obj, code=200, headers=()):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
+        for k, v in headers:
+            self.send_header(k, v)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
@@ -1362,6 +1554,23 @@ class Handler(BaseHTTPRequestHandler):
                          else "no-store")
         self.end_headers()
         self.wfile.write(body)
+
+    def _html(self, body, code=200, headers=()):
+        self.send_response(code)
+        for k, v in headers:
+            self.send_header(k, v)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _redirect(self, to, code=303):
+        self.send_response(code)
+        self.send_header("Location", to)
+        self.send_header("Content-Length", "0")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
 
     def _file(self, path, ctype, cache=False):
         try:
@@ -1402,6 +1611,14 @@ class Handler(BaseHTTPRequestHandler):
             # its scope, which is why /sw.js is not under /pwa/. Never
             # cached: a stale worker outlives every other kind of stale.
             return self._file(PWA / name, ctype, cache=name.endswith(".png"))
+
+        # The login screen, ahead of the gate because a gate that redirected
+        # to a page behind itself would be a loop.
+        if u.path == "/login":
+            if not AUTH_ON or self.logged_in()[0]:
+                return self._redirect("/")
+            nxt = safe_next((parse_qs(u.query).get("next") or ["/"])[0])
+            return self._html(login_page(nxt=nxt))
 
         if not self.authed():
             return
@@ -1463,9 +1680,36 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             db.close()
 
+    # -- login -----------------------------------------------------------
+
+    def do_login(self):
+        """What the form posts to. The only route that reads a form body."""
+        if not AUTH_ON:
+            return self._redirect("/")
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > 4096:            # a login is a few dozen bytes; this is not one
+            return self._html(login_page("That was not a login."), 400)
+        form = parse_qs(self.rfile.read(n).decode("utf-8", "replace")) if n else {}
+        get = lambda k: (form.get(k) or [""])[0]
+        nxt = safe_next(get("next"))
+
+        ok, why = check_credentials(get("username"), get("password"),
+                                    self.client_ip())
+        if ok:
+            self._issue_session()
+            return self._redirect(nxt)
+        if why == "rate":
+            return self._html(login_page(RATE_MSG, nxt), 429,
+                              (("Retry-After", str(RATE_WINDOW)),))
+        # One message for both fields: which half was wrong is not the
+        # browser's business, and saying so is free reconnaissance.
+        return self._html(login_page("Wrong username or password.", nxt), 401)
+
     # -- POST ------------------------------------------------------------
 
     def do_POST(self):
+        if urlparse(self.path).path == "/login":
+            return self.do_login()
         if not self.authed():
             return
         u = urlparse(self.path)

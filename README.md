@@ -1020,14 +1020,36 @@ cannot get in each other's way, and a restart mid-search costs nothing.
 
 ## Security
 
-HTTP Basic Auth, on whenever a password is present — the systemd credential
-`password` (the `media-tracker-password` sops secret in
+A login screen at `/login`, on whenever a password is present — the systemd
+credential `password` (the `media-tracker-password` sops secret in
 `secrets/personal-server.yaml`) or `$MT_PASSWORD`. Without one the app refuses
 to bind anything but loopback, so a misconfigured deploy fails to start rather
 than putting a writable API on the network. The username is `tracker` and lives
 in `app.json` as `MT_USERNAME`, since it is not a secret. Failed attempts are rate-limited to
 20 per hour per client IP, read from `CF-Connecting-IP` so the tunnel does not
 bucket the whole internet into one key.
+
+It is a page and not the browser's credential popup, which is what a `401` with
+`WWW-Authenticate: Basic` gets you: a grey modal over a blank tab, titled with
+the bare origin, unstyleable to the last pixel — and on a phone, opening the
+installed app to that does not look like the same product. So the app never
+sends that header. A logged-out page navigation is redirected to `/login`,
+which is a screen in the same greys, the same Literata and the same iris as
+the shelf behind it; anything under `/api/` gets a `401` with a JSON body
+instead, and `api()` in ui.html turns that into the same redirect, so a cookie
+that lapses while a tab sits open lands on the login screen rather than a toast
+over a shelf that has stopped saving. `/fonts/`, the manifest and the icons
+stay ahead of the gate — the typefaces because the screen is drawn with them,
+the install kit because a `<link rel=manifest>` is fetched without the cookie
+and a redirect there silently downgrades the installed app to a bookmark.
+
+Basic credentials are still *accepted* on `Authorization`, so `curl -u` and any
+script keep working; they are simply never *asked* for. Both doors — the form
+and the header — check the password through `check_credentials()`, so the rate
+limit counts every attempt and not just the ones that came the old way. The
+`next=` parameter carries where the visitor was heading; it is reduced by
+`safe_next()` to a path on this server, since an unchecked one is an open
+redirect that hands a phishing page this domain to launch from.
 
 A successful login also sets `mt_session`, a signed cookie good for 30 days and
 re-issued whenever it drops under 21 days left, so the password is typed about
@@ -1043,7 +1065,7 @@ Three layers gate `media.azuresalt.app`, and two of them are set by hand:
 
 1. **Cloudflare Access policy** — dashboard only, *not* managed by cf-reconcile,
    so it can silently go missing.
-2. **HTTP Basic Auth** in app.py, from the sops secret above.
+2. **The login screen** in app.py, from the sops secret above.
 3. **app.py refuses to bind a non-loopback address with no password**, so a
    credential failure is a restart loop and a 502 rather than an open service.
 
@@ -1054,5 +1076,5 @@ still cannot reach the port.
 **Set the Access policy.** This hostname deserves it more than
 `eldenring.azuresalt.app` does: a wiped playthrough is re-seedable from
 `seed.json`, whereas `POST /api/delete` drops a series and its chapter history
-with no undo. The Basic Auth password is also only eight characters, which is
-fine behind Access and thin without it.
+with no undo. The password is also only eight characters, which is fine behind
+Access and thin without it.

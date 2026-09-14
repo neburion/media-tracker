@@ -1046,6 +1046,14 @@ async function api(path, body){
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(body)
   } : undefined);
+  /* The session ran out while the tab sat open. The server answers a fetch
+     with JSON rather than the login screen — it has no idea whether a human is
+     looking — so the bounce is ours to make, and a toast reading "not logged
+     in" over a shelf he can no longer edit would be the wrong answer. */
+  if (r.status === 401){
+    location.assign('/login?next=' + encodeURIComponent(location.pathname));
+    await new Promise(() => {});   // never resolves: the page is leaving
+  }
   const t = await r.text();
   let j = {};
   try { j = t ? JSON.parse(t) : {}; } catch { j = { error: t.slice(0,200) }; }
