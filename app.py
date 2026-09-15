@@ -227,7 +227,7 @@ _LOGIN_HTML = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#111111">
+<meta name="theme-color" content="#000000">
 <title>Media Tracker</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/pwa/icon-192.png" type="image/png">
@@ -246,15 +246,19 @@ _LOGIN_HTML = r"""<!doctype html>
 @font-face{font-family:Pub;src:url(/fonts/publicsans-medium.woff2) format("woff2");
   font-weight:500;font-display:swap}
 
-/* The same Radix greys and iris the shelf is built from, so this reads as the
-   front door of that app rather than a generic auth page. */
+/* The same palette the shelf is built from, so this reads as the front door of
+   that app rather than as a generic auth page. It has to be copied rather than
+   shared: this page is served before anything else is, by a function in the
+   server, so it cannot reach into ui.html for a token. Which is exactly how it
+   ended up a whole palette behind — the app went black and systemBlue and this
+   stayed on the old greys and the indigo. When one moves, move the other. */
 :root{
   color-scheme:dark;
-  --paper:#111111; --card:#191919; --sunk:#222222;
-  --ink:#eeeeee; --ink-2:#b4b4b4; --ink-3:#8a8a8a;
-  --rule:#3a3a3a; --rule-2:#313131; --edge:#484848;
-  --a7:#4a4a95; --a9:#5b5bd6; --a10:#6e6ade; --a11:#b1a9ff;
-  --bad:#e5484d; --bad-bg:#3c181a; --bad-ink:#ff9592;
+  --paper:#000000; --card:#1C1C1E; --sunk:#2C2C2E;
+  --ink:#FFFFFF; --ink-2:rgba(235,235,245,.70); --ink-3:rgba(235,235,245,.52);
+  --fill:rgba(120,120,128,.22); --edge:rgba(84,84,88,.65);
+  --a7:rgba(10,132,255,.55); --a9:#0A84FF; --a10:#3D9BFF; --a11:#6FB8FF;
+  --bad:#FF453A; --bad-bg:rgba(255,69,58,.16); --bad-ink:#FF8A80;
 }
 *{box-sizing:border-box}
 html,body{height:100%}
@@ -266,7 +270,7 @@ body{
 }
 form{
   width:min(100%,340px); background:var(--card);
-  border:1px solid var(--rule); border-radius:14px; padding:28px 24px 24px;
+  border:0; border-radius:16px; padding:28px 24px 24px;
 }
 h1{
   margin:0; font:600 27px/1.2 Lit,Georgia,serif; letter-spacing:-.01em;
@@ -274,28 +278,30 @@ h1{
 }
 .sub{
   margin:6px 0 22px; text-align:center; color:var(--ink-3);
-  font-size:12.5px; letter-spacing:.08em; text-transform:uppercase;
+  font:400 13px/18px Pub,system-ui,sans-serif;
 }
-label{display:block; margin:0 0 6px; font-size:12.5px; color:var(--ink-2)}
+label{display:block; margin:0 0 6px; font:400 13px/18px Pub,system-ui,sans-serif;
+  color:var(--ink-2)}
 input{
-  width:100%; margin:0 0 14px; padding:11px 12px;
-  background:var(--sunk); color:var(--ink);
-  border:1px solid var(--rule-2); border-radius:9px;
+  width:100%; margin:0 0 14px; padding:13px 14px;
+  background:var(--fill); color:var(--ink);
+  border:1px solid transparent; border-radius:12px;
   font:400 16px/1.2 Pub,system-ui,sans-serif;  /* 16px: iOS zooms below it */
   -webkit-appearance:none; appearance:none;
 }
-input:hover{border-color:var(--edge)}
-input:focus{outline:none; border-color:var(--a7); box-shadow:0 0 0 3px #5b5bd633}
+input:focus{outline:none; border-color:var(--a7);
+  box-shadow:0 0 0 3px rgba(10,132,255,.25)}
 button{
-  width:100%; margin-top:6px; padding:12px;
-  background:var(--a9); color:#fff; border:0; border-radius:9px;
-  font:500 15px/1 Pub,system-ui,sans-serif; cursor:pointer;
+  width:100%; margin-top:6px; padding:14px;
+  background:var(--a9); color:#fff; border:0; border-radius:12px;
+  font:600 17px/1 Pub,system-ui,sans-serif; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
 }
 button:hover{background:var(--a10)}
-button:active{transform:translateY(1px)}
+button:active{transform:scale(.98)}
 .err{
-  margin:0 0 16px; padding:9px 11px; border-radius:9px;
-  background:var(--bad-bg); border:1px solid var(--bad);
+  margin:0 0 16px; padding:11px 13px; border-radius:12px;
+  background:var(--bad-bg); border:0;
   color:var(--bad-ink); font-size:13px; text-align:center;
 }
 </style>

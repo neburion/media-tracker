@@ -31,13 +31,16 @@ const OFFLINE = `<!doctype html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark"><title>Offline</title>
 <style>
-  html{background:#111;color:#e8e8e8;font:16px/1.5 system-ui,sans-serif}
-  body{display:grid;place-content:center;gap:20px;min-height:100vh;margin:0;
+  /* The app's palette, copied for the same reason the login page copies it:
+     this string is served by a worker that cannot read a stylesheet. */
+  html{background:#000;color:#fff;font:17px/22px system-ui,sans-serif}
+  body{display:grid;place-content:center;gap:18px;min-height:100vh;margin:0;
        padding:24px;text-align:center}
-  h1{font-size:19px;font-weight:600;margin:0}
-  p{margin:0;color:#8f8f8f;max-width:30ch}
-  button{background:#3dd68c;color:#0b0b0b;border:0;border-radius:8px;
-         padding:11px 22px;font:inherit;font-weight:600}
+  h1{font:600 22px/28px system-ui,sans-serif;margin:0}
+  p{margin:0;color:rgba(235,235,245,.6);max-width:32ch;font-size:15px}
+  button{background:#0A84FF;color:#fff;border:0;border-radius:12px;
+         padding:13px 24px;font:inherit;font-weight:600;
+         -webkit-tap-highlight-color:transparent}
 </style></head><body>
 <h1>Can't reach the tracker</h1>
 <p>The server is unreachable. Your data is on it, not here.</p>
