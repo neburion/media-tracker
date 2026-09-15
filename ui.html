@@ -43,36 +43,63 @@
   font-weight:400;font-display:swap}
 
 /* ── tokens ─────────────────────────────────────────────────────────────
-   Radix Colors' `gray` dark scale, used as designed. It is a true neutral —
-   R, G and B are equal at every step — which is the entire point here: the
-   palette this replaced was warm at both ends (#14130F ground, #EDE9DC text),
-   and a warm near-white on a warm near-black reads as cream, not as white.
+   Apple's dark system palette, which is a different idea from the Radix scale
+   it replaces. Radix gives you twelve neutral steps and leaves the semantics
+   to you; Apple gives you a handful of colours that are already answers —
+   this is the page, this is a raised surface, this is a control's ground, this
+   is a label nobody needs to read first. Fewer greys, each with a job.
 
-   The step numbering is Radix's and each one has a job, which is what keeps a
-   dark UI from turning into guesswork about which grey goes where:
+   Three things change the whole look and all three are deliberate:
 
-     1  app background          6  subtle border / separator
-     2  subtle background       7  element border, focus ring
-     3  element background      8  hovered border
-     4  hovered element         11 low-contrast text
-     5  active / selected       12 high-contrast text
+   The page is #000, not #111. On an OLED phone black is the absence of light
+   rather than a very dark grey, so a cover sits in nothing at all and the
+   screen ends where the content ends. It is also what makes a raised surface
+   read as raised without drawing a line around it.
 
-   https://www.radix-ui.com/colors/docs/palette-composition/understanding-the-scale */
+   Surfaces go up in lightness, never outward in outline. #000 page, #1C1C1E
+   card, #2C2C2E for a control's own ground. A dark interface built out of 1px
+   borders is a wireframe of itself; the system apps almost never draw one.
+
+   Controls sit on translucent FILLS rather than opaque greys — #787880 at
+   36/32/24/18% — so a pill on a card and the same pill on the page are the
+   same token and both look right. That is the trick the fixed greys cannot do.
+
+   Labels are #EBEBF5 stepped down by alpha. Apple's steps are 60/30/18%;
+   this file keeps 66/52 instead, because tertiary at 30% measures 2.6:1 on a
+   #1C1C1E card and everything here that uses the dimmest label is small text
+   you actually have to read. Apple's hue, this app's contrast floor — the same
+   trade the old --ink-3 comment made, kept through the change of palette.
+
+   Values are the measured dark-mode ones; Apple publishes swatches, not hex,
+   and reserves the right to move them. */
 :root{
   color-scheme:dark;
 
-  --g1:#111111;  --g2:#191919;  --g3:#222222;  --g4:#2a2a2a;
-  --g5:#313131;  --g6:#3a3a3a;  --g7:#484848;  --g8:#606060;
-  --g9:#6e6e6e;  --g10:#7b7b7b; --g11:#b4b4b4; --g12:#eeeeee;
+  /* The grey ladder, on Apple's rungs. Same names as before so every rule in
+     this file still means what it meant; the rungs themselves moved. */
+  --g1:#000000;  --g2:#1C1C1E;  --g3:#2C2C2E;  --g4:#3A3A3C;
+  --g5:#48484A;  --g6:#545456;  --g7:#636366;  --g8:#7C7C80;
+  --g9:#8E8E93;  --g10:#98989D; --g11:#AEAEB2; --g12:#F2F2F7;
 
   --paper:var(--g1);      /* the page */
-  --card:var(--g2);       /* raised surface */
-  --sunk:var(--g3);       /* inset: search field, chips, wells */
-  --ink:var(--g12);
-  --ink-2:var(--g11);
-  --ink-3:#8a8a8a;   /* 4.6:1 on --g3, the lightest ground a label sits on */
-  --rule:var(--g6);
-  --rule-2:var(--g5);
+  --card:var(--g2);       /* raised surface: sheet, card, grouped row */
+  --sunk:var(--g3);       /* a control's own ground where it must be opaque */
+  --ink:#FFFFFF;
+  --ink-2:rgba(235,235,245,.66);
+  --ink-3:rgba(235,235,245,.52);   /* 4.9:1 on --card */
+
+  /* Fills. The ground under a control, as a tint of the surface rather than a
+     colour of its own — which is why the same pill works on the page, on a
+     card and inside the sheet without a variant for each. */
+  --fill-1:rgba(120,120,128,.36);
+  --fill-2:rgba(120,120,128,.30);
+  --fill-3:rgba(120,120,128,.22);
+  --fill-4:rgba(120,120,128,.16);
+
+  /* Separators, for the few places a line still earns its keep: between rows
+     of a list, where the alternative is guessing where one row ends. */
+  --rule:rgba(84,84,88,.65);
+  --rule-2:rgba(84,84,88,.34);
 
   /* Accent: Radix `iris`, used at the steps it was designed for — 9 as a solid
      fill, 11 as text on dark, 3 as a subtle tinted background, 7 as a border.
@@ -80,8 +107,8 @@
      the ground and struggles to clear 4.5:1, which is why every guide says to
      desaturate 20-30% for dark mode. Radix's dark scales are already built to
      that, which is the reason for using them rather than mixing by hand. */
-  --a3:#202248;  --a5:#303374;  --a7:#4a4a95;
-  --a9:#5b5bd6;  --a10:#6e6ade; --a11:#b1a9ff;
+  --a3:rgba(94,92,230,.22);  --a5:rgba(94,92,230,.38);  --a7:rgba(94,92,230,.55);
+  --a9:#5E5CE6;  --a10:#7573EB; --a11:#A5A3FF;
 
   /* Shelf markers. Three hues for the shelves where something is still true of
      the book, two greys for the two where nothing is: Read and Dropped are
@@ -94,15 +121,15 @@
   /* Named for the shelves, which are no longer named after reading: the token
      names have to track them because the stats bars resolve --<status> from
      the status name itself. */
-  --current:#3dd68c;   /* green-11  — you are in it */
-  --later:#70b8ff;     /* blue-11   — queued */
-  --hold:#ffa057;      /* orange-11 — paused */
-  --finished:#b4b4b4;  /* gray-11   — done */
-  --dropped:#7b7b7b;   /* gray-10   — abandoned; dimmest of the five, but 3:1 */
+  --current:#30D158;   /* systemGreen  — you are in it */
+  --later:#0A84FF;     /* systemBlue   — queued */
+  --hold:#FF9F0A;      /* systemOrange — paused */
+  --finished:#AEAEB2;  /* systemGray3  — done */
+  --dropped:#8E8E93;   /* systemGray   — abandoned; dimmest of the five, but 3:1 */
 
   /* Semantic, on one control: the one that deletes a series. */
-  --danger:#e5484d;
-  --danger-dim:#b54548;
+  --danger:#FF453A;    /* systemRed */
+  --danger-dim:#B3352E;
 
   /* Type, as a scale with names rather than a pile of sizes. These are
      Apple's iOS text styles at their default Dynamic Type size, size and
@@ -152,12 +179,15 @@
      is behind it, and covers are the most colourful thing on this screen.
      Pushing saturation back up is what keeps a cover recognisable as it slides
      under the header instead of turning into a smudge. */
-  --material:rgba(25,25,25,.72);          /* --card, thinned */
-  --material-edge:rgba(255,255,255,.06);  /* a hairline, not a rule */
+  --material:rgba(16,16,18,.62);          /* the page, thinned */
+  --material-edge:rgba(255,255,255,.08);  /* a hairline, not a rule */
 
   --gap:16px;
   --tap:44px;
-  --shadow:0 1px 2px rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.35);
+  /* On black, a drop shadow is a shadow cast onto nothing: elevation here is
+     carried by lightness, and the shadow only has to keep a floating thing
+     from looking pasted on. */
+  --shadow:0 1px 2px rgba(0,0,0,.6), 0 8px 28px rgba(0,0,0,.55);
 
   /* Radius, on the scale every serious design system converged on: ~6px for
      controls, ~12px for containers, full-round for nothing but badges.
@@ -213,8 +243,8 @@ button{cursor:pointer}
 .btn:active,.pick:active,.tab:active,.chip:active:not(:disabled),
 .stepper button:active,.switch button:active,
 .pager .step:active:not(:disabled){
-  background:var(--g4);border-color:var(--g8);color:var(--ink)}
-.ico:active{background:var(--g4);color:var(--ink)}
+  background:var(--fill-2);border-color:transparent;color:var(--ink)}
+.ico:active{background:var(--fill-3);color:var(--ink)}
 /* The two that are already a solid colour go one stop deeper instead. */
 .btn.primary:active,.chip.go:active:not(:disabled){
   background:var(--a10);border-color:var(--a10);color:#fff}
@@ -268,8 +298,7 @@ h1{font-size:16px;font-weight:600;margin:0;
   min-width:0;overflow:hidden;text-overflow:ellipsis}
 .tally{margin-left:auto;display:flex;align-items:baseline;gap:10px;flex:none}
 .tally b{font-family:Mono,monospace;font-size:16px;font-weight:400}
-.tally i{font-style:normal;font-size:11px;color:var(--ink-3);letter-spacing:.06em;
-  text-transform:uppercase}
+.tally i{font-style:normal;font:var(--type-caption);color:var(--ink-3)}
 @media (max-width:560px){.tally span:nth-child(2){display:none}}
 /* Below this the tally is what pushes the title into an ellipsis, and it is
    redundant anyway — the tab strip right underneath carries a count per shelf
@@ -279,12 +308,12 @@ h1{font-size:16px;font-weight:600;margin:0;
 .ico{flex:none;width:36px;height:36px;display:grid;place-items:center;
   background:none;border:1px solid transparent;color:var(--ink-2);border-radius:var(--r-md)}
 @media (max-width:640px){.ico{width:var(--tap);height:var(--tap)}}
-.ico:hover{color:var(--ink);background:var(--g4)}
+.ico:hover{color:var(--ink);background:var(--fill-4)}
 .ico svg{width:20px;height:20px;fill:currentColor;stroke:none}
 .ico.on{color:var(--a11);background:var(--a3)}
 
 .seek{display:flex;align-items:center;gap:9px;margin:8px 0 10px;
-  border:1px solid transparent;background:var(--sunk);padding:0 14px;
+  border:1px solid transparent;background:var(--fill-3);padding:0 14px;
   height:40px;border-radius:var(--r-md);transition:border-color .12s}
 .seek:focus-within{border-color:var(--a7)}
 .seek svg{width:17px;height:17px;flex:none;color:var(--ink-3);fill:currentColor;
@@ -299,7 +328,7 @@ h1{font-size:16px;font-weight:600;margin:0;
   padding:2px 0 10px;margin:0 -2px;scroll-padding:0 14px}
 .tabs::-webkit-scrollbar{display:none}
 .tab{
-  flex:none;background:var(--sunk);border:1px solid transparent;
+  flex:none;background:var(--fill-3);border:1px solid transparent;
   border-radius:var(--r-md);
   padding:0 13px;height:32px;color:var(--ink-2);font-size:13px;font-weight:500;
   display:flex;align-items:center;gap:7px;white-space:nowrap;
@@ -345,7 +374,7 @@ h1{font-size:16px;font-weight:600;margin:0;
   grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
 .door{
   display:flex;flex-direction:column;gap:10px;text-align:left;
-  padding:30px 28px;border:1px solid var(--rule);background:var(--card);
+  padding:30px 28px;border:1px solid transparent;background:var(--card);
   border-radius:var(--r-xl);color:inherit;transition:border-color .14s,transform .14s;
 }
 .door:hover{border-color:var(--a7);transform:translateY(-2px)}
@@ -369,13 +398,13 @@ h1{font-size:16px;font-weight:600;margin:0;
 .filt{display:flex;flex-direction:column;gap:5px;min-width:0}
 .filt>.lbl{padding-left:2px}
 select,.chip{
-  height:36px;border:1px solid var(--rule);background:var(--paper);
+  height:36px;border:1px solid transparent;background:var(--fill-3);
   color:var(--ink-2);padding:0 12px;border-radius:var(--r-md);font-size:13px;
   width:100%;
 }
 .chip{width:auto}
 select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
-.chip.on{background:var(--a3);border-color:var(--a7);color:var(--a11)}
+.chip.on{background:var(--a3);border-color:transparent;color:var(--a11)}
 /* The bar is opened by Edit and the bar has nine controls on it, so the one he
    came for says so. Solid, not tinted: `.on` already means "this toggle is
    thrown" three chips along, and two meanings of one look is a bar you read. */
@@ -396,24 +425,35 @@ select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
    actually reach them, and the header keeps only search, filter and theme. */
 .dock{display:none}
 @media (max-width:640px){
+  /* The dock floats. A bar welded to the bottom edge cuts the screen off and
+     turns the shelf into a window with a frame under it; lifted clear, with
+     the covers passing underneath, the shelf runs to the bottom of the glass
+     and the controls are plainly a layer on top of it. This is the one shape
+     in this file taken from iOS 26 rather than from the guidelines — the
+     guidelines say controls float above content, and this is what that looks
+     like when you take it literally. */
   .dock{
-    display:flex;position:fixed;left:0;right:0;bottom:0;z-index:45;
-    background:var(--material);border-top:1px solid var(--material-edge);
+    display:flex;position:fixed;z-index:45;
+    left:max(12px,env(safe-area-inset-left));
+    right:max(12px,env(safe-area-inset-right));
+    bottom:calc(10px + env(safe-area-inset-bottom));
+    border-radius:26px;overflow:hidden;
+    background:var(--material);border:1px solid var(--material-edge);
+    box-shadow:var(--shadow);
     -webkit-backdrop-filter:saturate(180%) blur(22px);
     backdrop-filter:saturate(180%) blur(22px);
-    padding:0 max(4px,env(safe-area-inset-right)) env(safe-area-inset-bottom)
-              max(4px,env(safe-area-inset-left));
+    padding:0 4px;
   }
   .dock button{
-    flex:1;min-width:0;min-height:58px;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:4px;
-    background:none;border:0;color:var(--ink-3);padding:8px 2px 6px;
+    flex:1;min-width:0;min-height:54px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:3px;
+    background:none;border:0;color:var(--ink-3);padding:7px 2px 6px;
   }
   /* The icon sits in its own pill, which is what fills in when the view is
      active. Colouring the glyph alone gives a 20px target's worth of feedback
      on a 58px control; the pill is the part you can actually see land. */
-  .dock i{display:grid;place-items:center;width:56px;height:30px;
-    border-radius:var(--r-md);transition:background .14s}
+  .dock i{display:grid;place-items:center;width:54px;height:30px;
+    border-radius:var(--r-dot);transition:background .14s}
   .dock svg{width:22px;height:22px;fill:currentColor;stroke:none}
   .dock span{font-size:10.5px;letter-spacing:.01em;font-weight:500}
   .dock button.on{color:var(--a11)}
@@ -432,7 +472,7 @@ select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
   .fab{
     display:grid;place-items:center;position:fixed;z-index:46;
     right:max(16px,env(safe-area-inset-right));
-    bottom:calc(74px + env(safe-area-inset-bottom));
+    bottom:calc(86px + env(safe-area-inset-bottom));
     width:52px;height:52px;border:0;border-radius:var(--r-xl);
     background:var(--a9);color:#fff;box-shadow:var(--shadow);
   }
@@ -452,8 +492,8 @@ body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 body.selecting .fab{display:none}
 /* clear the dock, plus the home indicator on gesture-nav phones */
 @media (max-width:640px){
-  main{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
-  #toast{bottom:calc(74px + env(safe-area-inset-bottom))}
+  main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+  #toast{bottom:calc(86px + env(safe-area-inset-bottom))}
 }
 .grid{display:grid;gap:18px 14px;
   grid-template-columns:repeat(auto-fill,minmax(148px,1fr))}
@@ -464,7 +504,7 @@ body.selecting .fab{display:none}
   background:none;border:0;padding:0;text-align:left;color:inherit;
   --dot:var(--ink-3)}
 .plate{
-  position:relative;aspect-ratio:2/3;background:var(--sunk);overflow:hidden;
+  position:relative;aspect-ratio:2/3;background:var(--fill-4);overflow:hidden;
   border:1px solid var(--rule-2);border-radius:var(--r-lg);box-shadow:var(--shadow);
   cursor:pointer;transition:transform .12s ease,border-color .14s;
 }
@@ -619,8 +659,8 @@ body.selecting .fab{display:none}
    once — a verdict that costs a scroll is not one gesture. */
 .tri{
   position:relative;width:100%;aspect-ratio:2/3;overflow:hidden;
-  border-radius:var(--r-xl);background:var(--sunk);
-  border:1px solid var(--rule-2);box-shadow:var(--shadow);
+  border-radius:var(--r-xl);background:var(--fill-4);
+  border:1px solid transparent;box-shadow:var(--shadow);
   touch-action:pan-y;user-select:none;cursor:grab;
 }
 .tri:active{cursor:grabbing}
@@ -675,14 +715,13 @@ body.selecting .fab{display:none}
 .swipe.r{align-items:flex-end;text-align:right}
 .swipe b{font-weight:600;font-size:13.5px;color:var(--tone,var(--ink-2));
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.swipe span{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
-  font-weight:600;color:var(--ink-3)}
+.swipe span{font:var(--type-caption);color:var(--ink-3)}
 .swipe:hover b{text-decoration:underline;text-underline-offset:3px}
 
 /* Whatever the card is missing, under the legend instead of on the cover: the
    cover is the question and a form printed over it is the screen this replaced.
    Blank fields only, which is the entire point — see soloGaps(). */
-.fills{background:var(--card);border:1px solid var(--rule);
+.fills{background:var(--card);border:1px solid transparent;
   border-radius:var(--r-xl);padding:16px;display:flex;flex-direction:column;
   gap:15px}
 .gap{display:flex;flex-direction:column;gap:7px}
@@ -690,15 +729,15 @@ body.selecting .fab{display:none}
 .shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));
   gap:8px;max-height:250px;overflow-y:auto}
 .shots .shot{aspect-ratio:2/3;border-radius:var(--r-md);overflow:hidden;
-  border:1px solid var(--rule-2);background:var(--sunk);padding:0}
+  border:1px solid transparent;background:var(--fill-4);padding:0}
 .shots .shot img{width:100%;height:100%;object-fit:cover;display:block}
 .shots .shot.on{border-color:var(--a9);box-shadow:0 0 0 2px var(--a9)}
 
 /* ── panels ─────────────────────────────────────────────────────────── */
 .panel{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:26px}
-.slab{background:var(--card);border:1px solid var(--rule);
+.slab{background:var(--card);border:1px solid transparent;
   border-radius:var(--r-xl);padding:20px}
-@media (max-width:640px){.slab{border-color:transparent;background:var(--sunk)}}
+@media (max-width:640px){.slab{border-color:transparent;background:var(--card)}}
 .slab h2{font-size:14px;font-weight:600;margin:0 0 14px;letter-spacing:-.01em}
 .slab h2 span{color:var(--ink-3);font-size:13px;font-family:Mono,monospace}
 /* The figures are sized by their own text and spread to both edges, which is
@@ -735,14 +774,16 @@ body.selecting .fab{display:none}
 }
 .fig b{display:block;font-family:Mono,monospace;font-size:26px;font-weight:400;
   line-height:1.1}
-.fig span{font-size:11px;color:var(--ink-3);letter-spacing:.07em;
-  text-transform:uppercase;font-weight:600}
+/* The caption under a figure. Same argument as the field labels: the number
+   is doing the shouting, and a word in tracked capitals under it competes with
+   the thing it is supposed to be naming. */
+.fig span{font:var(--type-footnote);color:var(--ink-3)}
 .rows{display:flex;flex-direction:column;gap:9px}
 .row{display:grid;grid-template-columns:118px 1fr 46px;align-items:center;gap:10px;
   font-size:13px}
 .row i{font-style:normal;color:var(--ink-2);white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
-.row u{text-decoration:none;height:9px;background:var(--sunk);display:block;
+.row u{text-decoration:none;height:9px;background:var(--fill-4);display:block;
   border-radius:1px;overflow:hidden}
 .row u b{display:block;height:100%;background:var(--bar,var(--g8))}
 .row em{font-style:normal;font-family:Mono,monospace;font-size:12px;
@@ -750,7 +791,7 @@ body.selecting .fab{display:none}
 .list{display:flex;flex-direction:column;gap:1px}
 .list button{display:flex;gap:10px;align-items:baseline;text-align:left;width:100%;
   background:none;border:0;padding:9px 12px;border-radius:var(--r-md);font-size:13.5px}
-.list button:hover{background:var(--sunk)}
+.list button:hover{background:var(--fill-4)}
 .list button em{font-style:normal;margin-left:auto;font-family:Mono,monospace;
   font-size:11px;color:var(--ink-3);flex:none}
 .hint{font-size:13px;color:var(--ink-2);margin:-6px 0 14px;line-height:1.55}
@@ -773,13 +814,13 @@ body.selecting .fab{display:none}
    the window is. The floor keeps a small window from shrinking it into the
    card it used to be. */
 .sheet{
-  position:fixed;z-index:51;background:var(--card);display:flex;
+  position:fixed;z-index:51;background:var(--paper);display:flex;
   flex-direction:column;box-shadow:var(--shadow);
   top:50%;left:50%;
   width:max(70vw,min(560px,100vw - 32px));
   height:max(70vh,min(560px,100vh - 32px));
   height:max(70dvh,min(560px,100dvh - 32px));
-  border:1px solid var(--rule);border-radius:var(--r-xl);overflow:hidden;
+  border:1px solid var(--material-edge);border-radius:var(--r-xl);overflow:hidden;
   /* Closed is out of the tab order, not merely transparent, and `visibility`
      is delayed by the length of the fade so it does not blink out mid-way. */
   opacity:0;visibility:hidden;pointer-events:none;
@@ -826,7 +867,10 @@ body.selecting .fab{display:none}
    the × is what Cancel says in words, and the cover is the first thing in the
    form now, which is where the eye goes anyway. */
 .sheet-top{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;
-  gap:10px;padding:10px 10px;position:relative;
+  gap:10px;padding:10px 10px;position:relative;z-index:1;
+  background:var(--material);
+  -webkit-backdrop-filter:saturate(180%) blur(22px);
+  backdrop-filter:saturate(180%) blur(22px);
   border-bottom:1px solid var(--material-edge)}
 .tbtn{height:var(--tap);padding:0 12px;border:0;background:none;border-radius:var(--r-md);
   font:var(--type-body);color:var(--a11);white-space:nowrap}
@@ -858,11 +902,68 @@ body.selecting .fab{display:none}
 .pager .count{flex:1;text-align:center;font-family:Mono,monospace;font-size:12px;
   color:var(--ink-3)}
 .pager .step{width:var(--tap);height:34px;flex:none;display:grid;place-items:center;
-  border:1px solid var(--rule);background:var(--paper);color:var(--ink-2);
+  border:1px solid transparent;background:var(--fill-3);color:var(--ink-2);
   border-radius:var(--r-md);font-size:15px}
 .pager .step:hover:not(:disabled){border-color:var(--a7);color:var(--a11)}
 .pager .step:disabled{opacity:.35}
-.sheet-body{flex:1;overflow-y:auto;padding:16px 14px 24px}
+.sheet-body{flex:1;overflow-y:auto;padding:16px 14px 28px}
+
+/* ── the form, as a grouped list ─────────────────────────────────────────
+   This is the shape every settings screen Apple has ever shipped is made of,
+   and it is worth copying exactly because of what it does rather than how it
+   looks: the page is the dark ground, each group of controls is a raised
+   surface sitting on it, and the name of the group is small text floating
+   above the surface rather than a caption stuck inside it. The eye gets the
+   groups before it reads a word — you can count the decisions in a form at a
+   glance — which a flat column of labelled boxes never gives you.
+
+   The inset on the label is the tell that it belongs to the card under it and
+   not to the card above: 16px, the same as the card's own padding, so the
+   label's first letter and the control's first letter share an edge. */
+.fields .field{margin-bottom:22px}
+.fields .field>.lbl{display:block;margin:0 0 7px 16px}
+.fields .field>.picks,
+.fields .field>.stepper,
+.fields .field>.stars,
+.fields .field>.pickbar,
+.fields .field>.switch,
+.fields .field>.alts,
+.fields .field>input[type=text],
+.fields .field>input[type=number],
+.fields .field>select,
+.fields .field>textarea{
+  background:var(--card);border-radius:var(--r-xl);
+}
+.fields .field>.picks{padding:10px;gap:8px}
+.fields .field>.stepper,
+.fields .field>.stars,
+.fields .field>.pickbar,
+.fields .field>.switch{padding:8px 10px}
+.fields .field>.alts{padding:10px;gap:8px}
+.fields .field>.alts:empty{padding:0;background:none}
+/* A group with nothing in it is an empty card under a heading for a thing that
+   does not exist: Setting and Genre come from a vocabulary per kind, and when
+   a kind has none the whole group should not be there. `:has` lets the heading
+   leave with the card it names. */
+.fields .field:has(>.picks:empty){display:none}
+/* A lone text box IS its own group, so it gets the surface directly and the
+   height of a list row rather than of an input on a web page. */
+.fields .field>input[type=text],
+.fields .field>input[type=number],
+.fields .field>select,
+.fields .field>textarea{
+  border:1px solid transparent;height:48px;padding:0 16px;font:var(--type-body)}
+.fields .field>textarea{height:auto;padding:12px 16px}
+/* Inside a group the controls are on the card already: a second fill on top of
+   the first is the glass-on-glass Apple warns about, one layer down. */
+.fields .field>.picks .pick,
+.fields .field>.pickbar input,
+.fields .field>.pickbar .btn,
+.fields .field>.stepper input,
+.fields .field>.stepper button,
+.fields .field>.alts input,
+.fields .field>.alts .ico{background:var(--fill-4)}
+.fields .field>.picks .pick[aria-pressed=true]{background:var(--a3)}
 /* A dialog the size of the screen holds ten short fields, and a single file
    of them down the left would be a ribbon with an acre of nothing beside it.
    So the cover takes the space instead — it is the one thing here that gets
@@ -889,7 +990,7 @@ body.selecting .fab{display:none}
    below takes the same element and makes it the hero of its own column. */
 .art{display:block;position:relative;width:104px;aspect-ratio:2/3;
   margin:2px auto 18px;overflow:hidden;border-radius:var(--r-lg);
-  border:1px solid var(--rule-2);background:var(--sunk)}
+  border:1px solid transparent;background:var(--fill-4)}
 .art img{width:100%;height:100%;object-fit:cover;display:block}
 @media (min-width:900px) and (min-height:740px){
   .sheet-body{padding:20px 24px 22px;
@@ -921,15 +1022,15 @@ body.selecting .fab{display:none}
 .field{margin-bottom:18px}
 .field>.lbl{display:block;margin-bottom:6px}
 .field input[type=text],.field input[type=number],.field select,.field textarea{
-  width:100%;height:40px;border:1px solid var(--rule);background:var(--paper);
+  width:100%;height:40px;border:1px solid transparent;background:var(--fill-3);
   border-radius:var(--r-md);padding:0 12px;font-size:16px;outline:none}
 .field textarea{height:auto;padding:8px 10px;font-size:14px;resize:vertical;
   line-height:1.5}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--a7)}
 .stepper{display:flex;gap:8px;align-items:center}
 .stepper input{text-align:center;font-family:Mono,monospace}
-.stepper button{width:var(--tap);height:40px;border:1px solid var(--rule);
-  background:var(--paper);border-radius:var(--r-md);font-size:17px;flex:none}
+.stepper button{width:var(--tap);height:40px;border:1px solid transparent;
+  background:var(--fill-3);border-radius:var(--r-md);font-size:17px;flex:none}
 .stepper button:hover{border-color:var(--g8);color:var(--ink)}
 .stars{display:flex;align-items:center;gap:10px}
 .stars input[type=range]{flex:1;accent-color:var(--a9);height:38px;min-width:0}
@@ -937,14 +1038,22 @@ body.selecting .fab{display:none}
 /* "Best of the Genre" will not fit in a 58px column beside the slider, so the
    number keeps that column and the word gets the line underneath. The line is
    reserved even when empty, or clearing a rating makes the sheet jump. */
-.tier{display:block;margin-top:6px;min-height:18px;line-height:18px;
-  font-size:13px;color:var(--ink-2)}
+/* The word under the number. In a grouped form this is a group's footer — the
+   sentence that explains the control you have just used — so it sits under the
+   card, inset to the same 16px as the label above it, in the same footnote as
+   the label. The line is reserved even when empty, or clearing a rating makes
+   the form jump. */
+.tier{display:block;margin:7px 0 0 16px;min-height:18px;
+  font:var(--type-footnote);color:var(--ink-3)}
 .picks{display:flex;flex-wrap:wrap;gap:6px}
-.pick{height:34px;padding:0 14px;border:1px solid var(--rule);background:var(--paper);
+.pick{height:34px;padding:0 14px;border:1px solid transparent;background:var(--fill-3);
   border-radius:var(--r-md);font-size:13px;color:var(--ink-2)}
 .pick:hover{border-color:var(--g8)}
 /* Same reasoning as the shelf chips, and the same fix. */
-.pick[aria-pressed=true]{background:var(--a3);border-color:var(--a7);
+/* Chosen. A tint and a weight, with the outline gone: a ring drawn round the
+   selected chip is the same information twice, and on a dark ground the ring
+   is the part that shouts. */
+.pick[aria-pressed=true]{background:var(--a3);border-color:transparent;
   color:var(--a11);font-weight:600}
 .pick[data-v]{--tone:none}
 .pick[data-status]::before{content:"";width:8px;height:8px;margin-right:8px;
@@ -956,9 +1065,9 @@ body.selecting .fab{display:none}
 /* Watched, or not. A film has no episode counter and never did — the number
    under one was the kind's unit leaking onto a type that does not count. */
 .switch{display:flex;align-items:center;gap:12px}
-.switch button{height:44px;flex:1;border:1px solid var(--rule);background:var(--paper);
+.switch button{height:44px;flex:1;border:1px solid transparent;background:var(--fill-3);
   border-radius:var(--r-md);font-size:14px;font-weight:500;color:var(--ink-2)}
-.switch button[aria-pressed=true]{background:var(--a3);border-color:var(--a7);
+.switch button[aria-pressed=true]{background:var(--a3);border-color:transparent;
   color:var(--a11);font-weight:600}
 /* Setting and Genre are the same pills as every other field, but many-of. The
    square corner is the whole tell: a radio group is round, a checkbox is not. */
@@ -972,15 +1081,15 @@ body.selecting .fab{display:none}
    the chip bar already makes two hundred lines up. */
 .destroy{display:block;width:100%;margin:22px 0 4px;padding:13px 16px;
   min-height:var(--tap);border:0;border-radius:var(--r-lg);
-  background:var(--sunk);color:var(--danger);font:var(--type-body);
+  background:var(--fill-4);color:var(--danger);font:var(--type-body);
   text-align:center}
-.destroy:hover{background:var(--g4)}
-.destroy:active{background:var(--g5)}
+.destroy:hover{background:var(--fill-3)}
+.destroy:active{background:var(--fill-2)}
 
 .sheet-foot{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--rule-2);
   padding-bottom:calc(12px + env(safe-area-inset-bottom));background:var(--card)}
-.btn{height:var(--tap);padding:0 20px;border:1px solid var(--rule);
-  background:var(--paper);border-radius:var(--r-md);font-size:14px;font-weight:500}
+.btn{height:var(--tap);padding:0 20px;border:1px solid transparent;
+  background:var(--fill-3);border-radius:var(--r-md);font-size:14px;font-weight:500}
 .btn:hover{border-color:var(--g8);color:var(--ink)}
 .btn.primary{background:var(--a9);border-color:var(--a9);color:#fff;
   flex:1;font-weight:600}
@@ -988,7 +1097,7 @@ body.selecting .fab{display:none}
 .btn.danger{color:var(--ink-2)}
 .btn.danger:hover{border-color:var(--danger-dim);color:var(--danger)}
 .thumb{width:74px;flex:none;aspect-ratio:2/3;object-fit:cover;
-  border-radius:var(--r-lg);border:1px solid var(--rule-2);background:var(--sunk)}
+  border-radius:var(--r-lg);border:1px solid transparent;background:var(--fill-4)}
 .meta{font-size:11.5px;color:var(--ink-3);line-height:1.6;margin:0}
 
 /* ── toast ──────────────────────────────────────────────────────────── */
@@ -1032,7 +1141,7 @@ body.selecting .fab{display:none}
   .drawer select,.field textarea,dialog select,dialog input{font-size:16px}
 }
 
-dialog{border:1px solid var(--rule);border-radius:var(--r-xl);background:var(--card);
+dialog{border:1px solid var(--material-edge);border-radius:var(--r-xl);background:var(--card);
   color:var(--ink);padding:0;width:min(400px,calc(100vw - 28px));box-shadow:var(--shadow)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 dialog form{padding:18px}
@@ -1046,7 +1155,7 @@ dialog h2{font-size:15px;margin:0 0 16px;font-weight:600}
 .alts:empty{margin-bottom:0}
 .altrow{display:flex;gap:8px}
 .altrow input{flex:1;min-width:0}
-.altrow .ico{flex:none;width:40px;height:40px;border:1px solid var(--rule);
+.altrow .ico{flex:none;width:40px;height:40px;border:1px solid transparent;
   border-radius:var(--r-sm);background:var(--paper)}
 
 /* ── the cover picker ───────────────────────────────────────────────────
@@ -1063,13 +1172,13 @@ dialog h2{font-size:15px;margin:0 0 16px;font-weight:600}
 
 #art{border:0;padding:0;background:none;width:min(920px,calc(100vw - 24px));
   max-width:none}
-#art .wrap{background:var(--card);border:1px solid var(--rule);
+#art .wrap{background:var(--card);border:1px solid transparent;
   border-radius:var(--r-xl);display:flex;flex-direction:column;
   max-height:min(86dvh,900px)}
 #art .head{display:flex;gap:8px;align-items:center;padding:14px 16px;
   border-bottom:1px solid var(--rule-2)}
-#art .head input{flex:1;min-width:0;height:38px;border:1px solid var(--rule);
-  background:var(--paper);border-radius:var(--r-md);padding:0 12px;font-size:16px;
+#art .head input{flex:1;min-width:0;height:38px;border:1px solid transparent;
+  background:var(--fill-3);border-radius:var(--r-md);padding:0 12px;font-size:16px;
   outline:none}
 #art .head input:focus{border-color:var(--a7)}
 #art .names{display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;
@@ -1078,8 +1187,8 @@ dialog h2{font-size:15px;margin:0 0 16px;font-weight:600}
    browser gives [hidden], so a series with no alternative names was still
    getting the empty strip and its border. Say it explicitly. */
 #art .names[hidden]{display:none}
-#art .names .name{height:28px;padding:0 11px;border:1px solid var(--rule);
-  background:var(--paper);color:var(--ink-2);border-radius:999px;font-size:12px;
+#art .names .name{height:28px;padding:0 11px;border:1px solid transparent;
+  background:var(--fill-3);color:var(--ink-2);border-radius:999px;font-size:12px;
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #art .names .name:hover{border-color:var(--a7);color:var(--ink)}
 #art .names .name[aria-pressed=true]{border-color:var(--a9);color:var(--ink);
@@ -1090,7 +1199,7 @@ dialog h2{font-size:15px;margin:0 0 16px;font-weight:600}
 @media (max-width:640px){#art .shots{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:9px}}
 /* Each tile is the shape the shelf will draw it in, so what you pick is what
    you get rather than a surprise after saving. */
-.shot{position:relative;padding:0;border:1px solid var(--rule);background:var(--sunk);
+.shot{position:relative;padding:0;border:1px solid transparent;background:var(--fill-4);
   border-radius:var(--r-lg);overflow:hidden;aspect-ratio:2/3;cursor:pointer}
 .shot img{width:100%;height:100%;object-fit:cover;display:block}
 .shot:hover,.shot:focus-visible{border-color:var(--a7);outline:none}
