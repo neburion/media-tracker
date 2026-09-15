@@ -85,7 +85,7 @@
   --card:var(--g2);       /* raised surface: sheet, card, grouped row */
   --sunk:var(--g3);       /* a control's own ground where it must be opaque */
   --ink:#FFFFFF;
-  --ink-2:rgba(235,235,245,.66);
+  --ink-2:rgba(235,235,245,.70);
   --ink-3:rgba(235,235,245,.52);   /* 4.9:1 on --card */
 
   /* Fills. The ground under a control, as a tint of the surface rather than a
@@ -109,6 +109,19 @@
      that, which is the reason for using them rather than mixing by hand. */
   --a3:rgba(94,92,230,.22);  --a5:rgba(94,92,230,.38);  --a7:rgba(94,92,230,.55);
   --a9:#5E5CE6;  --a10:#7573EB; --a11:#A5A3FF;
+
+  /* Chosen, without spending colour on it.
+     The accent was doing two jobs — "this is the button that acts" and "this
+     one of eight is the one you picked" — and a screen where eight chips, a
+     tab and a dock item are all wearing the accent at once has no accent left,
+     just a violet cast. So a selection is a RAISED SURFACE now: the chip comes
+     up out of the track and the label goes to full white, which is what a
+     segmented control does and what the eye reads as "this one" without any
+     hue at all. That hands the colour back to the two things that deserve it —
+     the five shelf markers, which mean something, and the covers, which are
+     the whole point of the screen. */
+  --sel:rgba(255,255,255,.16);
+  --sel-2:rgba(255,255,255,.22);
 
   /* Shelf markers. Three hues for the shelves where something is still true of
      the book, two greys for the two where nothing is: Read and Dropped are
@@ -195,11 +208,18 @@
      GitHub's Primer sits lower still. The previous pass had 999px pills on
      every button and a 28px sheet, which is a phone-app costume rather than a
      scale. Full-round survives only where the shape *is* the content: the 8px
-     status dots. */
-  --r-sm:4px;          /* tags, counters, small inline chips */
-  --r-md:6px;          /* buttons, inputs, selects, tabs */
-  --r-lg:10px;         /* cover plates, thumbnails */
-  --r-xl:12px;         /* panels, slabs, dialogs, the sheet's lip */
+     status dots.
+
+     Every step went up by two on the Apple pass. The argument above is about
+     the difference between a scale and a costume, and it still holds — but it
+     was written against 999px pills, and 6px on a 44px control is sharp enough
+     to read as a web form rather than as a control. 8 and 12 and 16 are the
+     numbers the system sits at for a chip, a field and a card, and the ratios
+     between them are the same ratios as before. */
+  --r-sm:6px;          /* tags, counters, small inline chips */
+  --r-md:8px;          /* buttons, inputs, selects, tabs */
+  --r-lg:12px;         /* cover plates, thumbnails, search */
+  --r-xl:16px;         /* panels, slabs, dialogs, the sheet's lip */
   --r-dot:999px;       /* dots, and nothing else */
 }
 
@@ -251,7 +271,7 @@ button{cursor:pointer}
 /* A pill that is already chosen must not turn grey the moment it is touched —
    the press would read as un-choosing it. It keeps its tint and just moves. */
 .pick[aria-pressed=true]:active,.switch button[aria-pressed=true]:active,
-.chip.on:active{background:var(--a3);border-color:var(--a7);color:var(--a11)}
+.chip.on:active{background:var(--sel-2);border-color:transparent;color:var(--ink)}
 /* The card presses as one piece, cover and all, which is the whole object he
    aimed at rather than a rectangle drawn around it. */
 .book:active .plate{transform:scale(.97);border-color:var(--a7)}
@@ -290,13 +310,23 @@ header{
     .dock{background:var(--card);border-top-color:var(--rule)}
   }
 }
-.bar{display:flex;align-items:center;gap:12px;min-height:36px}
+/* A navigation bar: the way back on the leading edge, the title next to it,
+   and every action on the trailing edge. The gap is 2px because these are
+   44px targets with a 20px glyph in the middle of each — the air between the
+   glyphs is already 24px, and adding 12 on top of that scattered them across
+   the bar instead of grouping them into a set of controls. */
+.bar{display:flex;align-items:center;gap:2px;min-height:36px}
 /* min-width:0 so the title truncates instead of shoving the toolbar off the
    right edge — without it a long name makes the whole page scroll sideways. */
-h1{font-size:16px;font-weight:600;margin:0;
+/* The auto margin lives here rather than on the tally, which is what made the
+   toolbar look like it had been dropped on the bar from a height: under 460px
+   the tally is hidden, the auto margin went with it, and the two icons that
+   survive on a phone ended up leaning against the title with the whole right
+   half of the bar empty beside them. On the title it is unconditional. */
+h1{font:var(--type-headline);margin:0 auto 0 6px;
   white-space:nowrap;letter-spacing:-.01em;
   min-width:0;overflow:hidden;text-overflow:ellipsis}
-.tally{margin-left:auto;display:flex;align-items:baseline;gap:10px;flex:none}
+.tally{display:flex;align-items:baseline;gap:10px;flex:none;margin-right:8px}
 .tally b{font-family:Mono,monospace;font-size:16px;font-weight:400}
 .tally i{font-style:normal;font:var(--type-caption);color:var(--ink-3)}
 @media (max-width:560px){.tally span:nth-child(2){display:none}}
@@ -314,7 +344,7 @@ h1{font-size:16px;font-weight:600;margin:0;
 
 .seek{display:flex;align-items:center;gap:9px;margin:8px 0 10px;
   border:1px solid transparent;background:var(--fill-3);padding:0 14px;
-  height:40px;border-radius:var(--r-md);transition:border-color .12s}
+  height:40px;border-radius:var(--r-lg);transition:border-color .12s}
 .seek:focus-within{border-color:var(--a7)}
 .seek svg{width:17px;height:17px;flex:none;color:var(--ink-3);fill:currentColor;
   stroke:none}
@@ -328,9 +358,10 @@ h1{font-size:16px;font-weight:600;margin:0;
   padding:2px 0 10px;margin:0 -2px;scroll-padding:0 14px}
 .tabs::-webkit-scrollbar{display:none}
 .tab{
-  flex:none;background:var(--fill-3);border:1px solid transparent;
-  border-radius:var(--r-md);
-  padding:0 13px;height:32px;color:var(--ink-2);font-size:13px;font-weight:500;
+  flex:none;background:var(--fill-4);border:1px solid transparent;
+  border-radius:var(--r-lg);
+  padding:0 14px;height:34px;color:var(--ink-2);font:var(--type-footnote);
+  font-weight:500;
   display:flex;align-items:center;gap:7px;white-space:nowrap;
 }
 @media (max-width:640px){.tab{height:36px;padding:0 15px}}
@@ -344,7 +375,7 @@ h1{font-size:16px;font-weight:600;margin:0;
    states are dark, so all five markers stay visible in both. */
 .tab::before{content:"";width:8px;height:8px;border-radius:var(--r-dot);
   background:var(--dot,var(--ink-3));flex:none}
-.tab[aria-selected=true]{background:var(--a3);border-color:var(--a7);
+.tab[aria-selected=true]{background:var(--sel);border-color:transparent;
   color:var(--a11);font-weight:600}
 .tab[aria-selected=true] em{opacity:.8}
 .tab[data-s=Current]{--dot:var(--current)} .tab[data-s=Later]{--dot:var(--later)}
@@ -404,7 +435,7 @@ select,.chip{
 }
 .chip{width:auto}
 select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
-.chip.on{background:var(--a3);border-color:transparent;color:var(--a11)}
+.chip.on{background:var(--sel);border-color:transparent;color:var(--ink)}
 /* The bar is opened by Edit and the bar has nine controls on it, so the one he
    came for says so. Solid, not tinted: `.on` already means "this toggle is
    thrown" three chips along, and two meanings of one look is a bar you read. */
@@ -459,26 +490,23 @@ select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
   .dock button.on{color:var(--a11)}
   .dock button.on i{background:var(--a3)}
   .dock button.on span{font-weight:600}
-  /* These live in the dock now; keeping both would be two ways to do one thing. */
+  /* The view switchers live in the dock now; keeping both would be two ways to
+     do one thing. Add is not a view, so it stays in the toolbar. */
   header .bar [data-view]{display:none}
-  header .bar [data-act=new]{display:none}
 }
 
 /* Add is the one thing here that creates rather than navigates, so on a phone
    it leaves the row of view switches and becomes the floating button — the
    same split Signal makes between its nav bar and its compose button. */
+/* The floating add button is gone and the + went back into the toolbar, where
+   the other two actions on a phone already live.
+   It was there because the toolbar used to be a mess on a phone — the tally
+   hid, the auto margin went with it, and the icons ended up leaning against
+   the title with the right half of the bar empty. A button floating over the
+   shelf was a way around a bar that had stopped working. The bar works now, so
+   the button can go back to it, and the last thing permanently parked on top
+   of somebody's cover art goes away with it. */
 .fab{display:none}
-@media (max-width:640px){
-  .fab{
-    display:grid;place-items:center;position:fixed;z-index:46;
-    right:max(16px,env(safe-area-inset-right));
-    bottom:calc(86px + env(safe-area-inset-bottom));
-    width:52px;height:52px;border:0;border-radius:var(--r-xl);
-    background:var(--a9);color:#fff;box-shadow:var(--shadow);
-  }
-  .fab svg{width:26px;height:26px;fill:currentColor;stroke:none}
-  .fab:active{background:var(--a10)}
-}
 
 /* ── shelf ──────────────────────────────────────────────────────────── */
 /* No width cap. A measure exists for prose, and a wall of covers is not
@@ -526,27 +554,37 @@ body.selecting .fab{display:none}
 .book[data-s=Hold]{--dot:var(--hold)}       .book[data-s=Finished]{--dot:var(--finished)}
 .book[data-s=Dropped]{--dot:var(--dropped)}
 
-.score{position:absolute;top:8px;right:8px;padding:3px 8px;
-  border-radius:var(--r-md);
-  background:rgba(0,0,0,.72);color:var(--ink);font-family:Mono,monospace;
-  font-size:11px;backdrop-filter:blur(3px)}
+.score{position:absolute;top:8px;right:8px;padding:3px 9px;
+  border-radius:var(--r-dot);
+  background:rgba(28,28,30,.55);color:#fff;font-family:Mono,monospace;
+  font-size:11px;
+  -webkit-backdrop-filter:saturate(180%) blur(12px);
+  backdrop-filter:saturate(180%) blur(12px)}
 .foot{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:flex-end;
   gap:6px;padding:22px 6px 6px;
   background:linear-gradient(transparent,rgba(0,0,0,.85))}
 .ch{font-family:Mono,monospace;font-size:12px;color:var(--ink);
   text-shadow:0 1px 2px rgba(0,0,0,.5)}
 .ch b{font-weight:400;font-size:9px;opacity:.7;letter-spacing:.06em}
+/* One more chapter, without opening anything. It sits on the cover, so it is
+   made the way everything that sits on a photo is made: a circle of blurred
+   glass, no outline. The bordered black square it replaces was drawing a box
+   round a button on top of a picture, which is two frames deep on an element
+   the size of a thumbnail. Round because it is the only control here that
+   overlays artwork, and a circle is what reads as a button against anything. */
 .plus{
-  margin-left:auto;width:28px;height:28px;flex:none;border-radius:var(--r-md);
-  border:1px solid rgba(255,255,255,.28);background:rgba(0,0,0,.6);
-  color:var(--ink);font-size:15px;line-height:1;display:grid;place-items:center;
-  opacity:0;transition:opacity .12s;backdrop-filter:blur(3px);
+  margin-left:auto;width:30px;height:30px;flex:none;border-radius:var(--r-dot);
+  border:0;background:rgba(28,28,30,.55);
+  color:#fff;font-size:17px;line-height:1;display:grid;place-items:center;
+  opacity:0;transition:opacity .12s,background .12s;
+  -webkit-backdrop-filter:saturate(180%) blur(12px);
+  backdrop-filter:saturate(180%) blur(12px);
 }
 .book:hover .plus,.plus:focus-visible{opacity:1}
-.plus:hover{background:var(--a9);border-color:var(--a9);color:#fff}
+.plus:hover{background:var(--a9);color:#fff}
 /* No hover to reveal it on a touch screen, and 28px is too small to hit while
    holding a phone — so it is always visible and grows to a real tap target. */
-@media (hover:none){.plus{opacity:1;width:38px;height:38px;font-size:19px}}
+@media (hover:none){.plus{opacity:1;width:36px;height:36px;font-size:19px}}
 
 .name{font:600 15px/20px Lit,Georgia,serif;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
@@ -963,7 +1001,7 @@ body.selecting .fab{display:none}
 .fields .field>.stepper button,
 .fields .field>.alts input,
 .fields .field>.alts .ico{background:var(--fill-4)}
-.fields .field>.picks .pick[aria-pressed=true]{background:var(--a3)}
+.fields .field>.picks .pick[aria-pressed=true]{background:var(--sel)}
 /* A dialog the size of the screen holds ten short fields, and a single file
    of them down the left would be a ribbon with an acre of nothing beside it.
    So the cover takes the space instead — it is the one thing here that gets
@@ -1053,8 +1091,8 @@ body.selecting .fab{display:none}
 /* Chosen. A tint and a weight, with the outline gone: a ring drawn round the
    selected chip is the same information twice, and on a dark ground the ring
    is the part that shouts. */
-.pick[aria-pressed=true]{background:var(--a3);border-color:transparent;
-  color:var(--a11);font-weight:600}
+.pick[aria-pressed=true]{background:var(--sel);border-color:transparent;
+  color:var(--ink);font-weight:600}
 .pick[data-v]{--tone:none}
 .pick[data-status]::before{content:"";width:8px;height:8px;margin-right:8px;
   border-radius:var(--r-dot);background:var(--tone,var(--ink-3));
@@ -1067,8 +1105,8 @@ body.selecting .fab{display:none}
 .switch{display:flex;align-items:center;gap:12px}
 .switch button{height:44px;flex:1;border:1px solid transparent;background:var(--fill-3);
   border-radius:var(--r-md);font-size:14px;font-weight:500;color:var(--ink-2)}
-.switch button[aria-pressed=true]{background:var(--a3);border-color:transparent;
-  color:var(--a11);font-weight:600}
+.switch button[aria-pressed=true]{background:var(--sel);border-color:transparent;
+  color:var(--ink);font-weight:600}
 /* Setting and Genre are the same pills as every other field, but many-of. The
    square corner is the whole tell: a radio group is round, a checkbox is not. */
 .picks.many .pick{border-radius:var(--r-sm)}
