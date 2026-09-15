@@ -132,6 +132,25 @@ async function smoke(){
         || [...new Set(small)].slice(0, 6).join(', '));
   }
 
+  // Select mode, and the way out of it. There was none on a phone: the button
+  // you entered by lives in the dock, and the bar the mode puts up covered the
+  // dock. A mode you cannot leave is the worst kind of bug, so it is checked.
+  const enter = [...document.querySelectorAll('[data-act=edit]')]
+    .find(b => !b.hidden && vis(b));
+  if (enter) {
+    enter.click();
+    await wait(400);
+    say('select mode opens its bar', vis(document.querySelector('.bulk')) || 'no bar');
+    const out = [...document.querySelectorAll('[data-act=done]')].find(b => vis(b));
+    say('select mode has a visible way out', !!out || 'nothing to press');
+    if (out) {
+      out.click();
+      await wait(400);
+      say('done leaves select mode', !S.picking || 'still picking');
+      say('the bar goes with it', !vis(document.querySelector('.bulk')) || 'bar still up');
+    }
+  }
+
   const de = document.documentElement;
   say('no sideways scroll', de.scrollWidth <= de.clientWidth + 1
       || de.scrollWidth + ' > ' + de.clientWidth);

@@ -691,13 +691,29 @@ body.selecting .fab{display:none}
    mode — so this is a shortcut that is missing, not a feature. */
 @media (hover:none){.pickone{display:none}}
 
+/* The mode's own bar, which stands where the dock stands and is built the same
+   way — floating, blurred, clear of the bottom edge — because it is doing the
+   dock's job for as long as the mode is on. Two bars stacked on each other was
+   the visible half of the bug above. */
 .bulk{
-  position:fixed;left:0;right:0;bottom:0;z-index:47;display:none;
+  position:fixed;z-index:47;display:none;
+  left:max(12px,env(safe-area-inset-left));
+  right:max(12px,env(safe-area-inset-right));
+  bottom:calc(10px + env(safe-area-inset-bottom));
   flex-wrap:wrap;gap:8px;align-items:center;
-  background:var(--card);border-top:1px solid var(--rule);
-  padding:10px max(14px,env(safe-area-inset-right))
-          calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));
+  border-radius:var(--r-xl);
+  background:var(--material);border:1px solid var(--material-edge);
+  box-shadow:var(--shadow);
+  -webkit-backdrop-filter:saturate(180%) blur(22px);
+  backdrop-filter:saturate(180%) blur(22px);
+  padding:10px 12px;
 }
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .bulk{background:var(--card)}
+}
+/* One bar at a time. The dock's own Group Edit is unreachable under this
+   anyway, and its other three go places you cannot go mid-selection. */
+body.selecting .dock{display:none}
 .bulk.open{display:flex}
 .bulk b{font-family:Mono,monospace;font-size:13px;font-weight:400;
   color:var(--ink);margin-right:2px;white-space:nowrap}
@@ -1372,6 +1388,8 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
     <button class="ico" data-view="solo" title="Group Sort" aria-label="Group Sort, one at a time"><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></button>
     <button class="ico" data-view="stats" title="Statistics" aria-label="Statistics"><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></button>
     <button class="ico" data-act="new" title="Add a series" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
+    <!-- Only while selecting, and it is the only thing in the bar then. -->
+    <button class="tbtn go" data-act="done" hidden>Done</button>
   </div>
 
   <div class="seek">
@@ -1814,11 +1832,23 @@ function render(){
   const filtered = S.type || S.pub || S.seen || S.sort !== 'updated'
                    || AXES.some(a => S[a]);
   for (const b of document.querySelectorAll('[data-act=filter]')){
-    b.hidden = !onShelf;
+    b.hidden = !onShelf || S.picking;
     b.classList.toggle('on', !!filtered);
   }
   // Group Edit is a way of acting on the grid, so it goes where the grid is —
   // and it lights while the selection it asked for is being made.
+  /* Select mode had no way out of itself on a phone. The way out was the Group
+     Edit button you came in by — and that lives in the dock, which the bar the
+     mode puts up covers completely. So you could tick, move, delete, and then
+     sit there in a mode with no exit.
+     The exit is Done, in the toolbar, which is where every Apple app has put
+     the end of an editing mode since there were editing modes. While it is up
+     it is the only thing in the bar: filter and add act on a screen you are
+     not currently having, and a toolbar with three buttons and a mode is a
+     toolbar that does not say what state you are in. */
+  for (const b of document.querySelectorAll('[data-act=done]')) b.hidden = !S.picking;
+  for (const b of document.querySelectorAll('[data-act=new]')) b.hidden = S.picking;
+
   for (const b of document.querySelectorAll('[data-act=edit]')){
     // The one in the dock stays put whatever you are looking at, because a tab
     // bar that changes shape as you move around it is a tab bar you cannot aim
@@ -3156,6 +3186,7 @@ document.addEventListener('click', ev => {
   // Group Edit is editing a selection and there is no selection yet, so the
   // button is the way into making one, with the bar already saying so. Pressing
   // it again while it is lit is the way back out.
+  if (act.dataset.act === 'done') return setPicking(false);
   if (act.dataset.act === 'edit'){
     // Pressed from Stats or from Group Sort it means "take me to the grid and
     // start choosing", not "start choosing on a screen with nothing to choose".
