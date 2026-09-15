@@ -642,8 +642,29 @@ body.selecting .fab{display:none}
   margin-top:-2px}
 .sub span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+/* Nothing here, said properly.
+   Every one of these used to be one grey sentence sitting a little way down
+   the page — and the same sentence, whether the shelf was genuinely empty,
+   the search had missed, or the filters had cut everything out. Three quite
+   different situations, one of which is a dead end and two of which have an
+   obvious way out, all reported identically and none of them saying what to
+   do about it.
+   So: a glyph, a line that names the situation, a sentence that explains it,
+   and — where there is one — the button that fixes it. Centred in what is
+   left of the screen rather than hanging under the header, because an empty
+   screen's content is the middle of it. */
 .empty{padding:60px 20px;text-align:center;color:var(--ink-3);
   font:var(--type-callout)}
+.nowt{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;text-align:center;padding:40px 24px;
+  min-height:min(58dvh,420px)}
+.nowt svg{width:44px;height:44px;fill:var(--ink-3);opacity:.45;margin-bottom:8px}
+.nowt b{font:var(--type-headline);color:var(--ink)}
+.nowt p{margin:0;font:var(--type-subhead);color:var(--ink-3);max-width:30ch;
+  line-height:1.5}
+.nowt .btn{margin-top:14px;background:var(--fill-3);color:var(--a11);
+  font-weight:600;padding:0 22px}
+.nowt .btn:hover{background:var(--fill-2);color:var(--a11)}
 
 /* ── select mode ────────────────────────────────────────────────────────
    Half of Hold is already sorted and he can see which half at a glance. That
@@ -1897,11 +1918,43 @@ function renderPortal(){
    of chrome standing between him and the shelf every single time he opens one
    is a high price for a signpost, and both passes are now reachable by name:
    Group Sort in the dock, Group Edit in the toolbar. */
+/* The glyphs. Three, and no more: a stack of books for "there is nothing
+   here", a magnifier for "nothing matched", a funnel for "you filtered it
+   all out". Drawn rather than fetched, at 24px on a 24 grid like every other
+   icon in this file. */
+const GLYPH = {
+  shelf: 'M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z',
+  find:  'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
+  sift:  'M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z',
+  done:  'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+};
+const nowt = (glyph, title, line, action) => `<div class="nowt">
+  <svg viewBox="0 0 24 24"><path d="${GLYPH[glyph]}"/></svg>
+  <b>${esc(title)}</b>
+  <p>${esc(line)}</p>
+  ${action ? `<button class="btn" data-act="${action.act}">${esc(action.label)}</button>` : ''}
+</div>`;
+
 function renderShelf(){
   const list = shown();
-  $('#main').innerHTML = list.length
-    ? `<div class="grid">${list.map(card).join('')}</div>`
-    : `<div class="empty">Nothing on this shelf.</div>`;
+  if (list.length)
+    return void ($('#main').innerHTML = `<div class="grid">${list.map(card).join('')}</div>`);
+
+  // Which kind of nothing this is. A search that missed and a filter that cut
+  // everything out both have a way back, and saying so is the whole job.
+  const filtered = S.type || S.pub || S.seen || AXES.some(a => S[a]);
+  $('#main').innerHTML =
+    S.q ? nowt('find', 'No results',
+               `Nothing on ${S.shelf === 'All' ? 'this tracker' : S.shelf}`
+               + ` matches “${S.q}”.`,
+               { act:'clear-q', label:'Clear search' })
+  : filtered ? nowt('sift', 'Nothing matches',
+               'Every title on this shelf is hidden by the filters you have set.',
+               { act:'clear-filters', label:'Reset filters' })
+  : nowt('shelf', `${S.shelf === 'All' ? S.kind : S.shelf} is empty`,
+         S.shelf === 'All'
+           ? 'Nothing has been added to this tracker yet.'
+           : `Nothing is on ${S.shelf} right now.`);
 }
 
 function card(s){
@@ -2292,9 +2345,12 @@ function renderSolo(){
     $('#main').innerHTML = `<div class="solo">
       <div class="solo-head">${scopePicker()}
         <span class="count">${q.queue.length ? 'done' : 'nothing waiting'}</span></div>
-      <div class="empty">${q.queue.length
-        ? `That is all ${q.queue.length} of them.`
-        : 'Nothing left to sort on this shelf.'}</div></div>`;
+      ${q.queue.length
+        ? nowt('done', 'That is the lot',
+               `You went through all ${q.queue.length} of them.`)
+        : nowt('done', 'Nothing waiting',
+               `Everything on ${S.shelf === 'All' ? 'this tracker' : S.shelf}`
+               + ` has already been through here.`)}</div>`;
     return;
   }
   const left = s.status || 'place';
@@ -3187,6 +3243,13 @@ document.addEventListener('click', ev => {
   // button is the way into making one, with the bar already saying so. Pressing
   // it again while it is lit is the way back out.
   if (act.dataset.act === 'done') return setPicking(false);
+  // The two ways back out of an empty screen, which is the point of saying
+  // which kind of empty it was.
+  if (act.dataset.act === 'clear-q'){
+    $('#q').value = ''; S.q = ''; $('#q-clear').hidden = true;
+    return render();
+  }
+  if (act.dataset.act === 'clear-filters'){ clearFilters(); return render(); }
   if (act.dataset.act === 'edit'){
     // Pressed from Stats or from Group Sort it means "take me to the grid and
     // start choosing", not "start choosing on a screen with nothing to choose".
