@@ -147,6 +147,13 @@ async function smoke(){
   const target = (S.data.series || [])[0];
   openSheet(target.id);
   await wait(400);
+  // Opening one series to change one thing is not a pass through a shelf:
+  // no pager over the form, and the button says what it does and nothing more.
+  say('a plain edit is not a walk',
+      !document.querySelector('.pager') || 'a pager is drawn over it');
+  say('a plain edit just saves',
+      document.querySelector('[data-save]').textContent.trim() === 'Save'
+      || 'the button says ' + document.querySelector('[data-save]').textContent.trim());
   const field = document.querySelector('#e-progress input');
   const was = Number(field.value || 0);
   field.value = String(was + 7);
@@ -157,12 +164,8 @@ async function smoke(){
   const now = fresh.series.find(x => x.id === target.id);
   say('save writes to the database', Number(now.chapter) === was + 7
       || `asked for ${was + 7}, the server has ${now.chapter}`);
-  // Saving from a shelf you are walking does not close the sheet, it moves to
-  // the next series — that is the whole point of the pager. So the assertion
-  // is that the editor MOVED ON, whichever way it did it.
-  say('save leaves the entry',
-      !vis(document.querySelector('.sheet.open')) || S.open !== target.id
-      || 'still sitting on the same series with the sheet open');
+  say('save closes the editor',
+      !vis(document.querySelector('.sheet.open')) || 'still open');
 
   say('no script errors', window.__errs.length === 0 || window.__errs.join(' | '));
   return out;

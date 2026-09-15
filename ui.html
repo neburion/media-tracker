@@ -2400,11 +2400,20 @@ function drawProgress(type){
 
    Passing a queue explicitly is how "go through these" starts one from the bulk
    bar, after select mode has already been left behind. */
+/* A walk is a run of series being gone through deliberately — the selection
+   behind Group Edit, or a queue handed over by whatever started the pass. It
+   is NOT the default.
+   It used to fall back to the whole shelf, so opening one series to fix one
+   number put you at position 47 of 917 with a pager over the form and a button
+   that said Save · Next: an edit dressed up as an expedition. Fixing a chapter
+   count is a one-thing job, and the way out of a one-thing job is Save.
+   The fallback is gone, so a walk exists only when somebody asked for one. */
 function walkFrom(id, queue){
   const order = shown().map(x => x.id);
   const run = queue ? queue
             : S.picked.size ? order.filter(x => S.picked.has(x))
-            : order;
+            : null;
+  if (!run){ S.walk = null; return; }
   const at = run.indexOf(Number(id));
   S.walk = at === -1 ? null : { queue: run, at };
 }
