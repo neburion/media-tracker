@@ -466,9 +466,9 @@ h1{font:var(--type-headline);margin:0 auto 0 6px;
    a tall narrow door gets three across and several rows, a short wide one gets
    six across and one. They stay 2:3 either way; nothing is squeezed into a
    strip to make it fit. */
-.hall{display:flex;flex-direction:column;gap:20px;
-  padding:24px 0 max(24px,env(safe-area-inset-bottom));
-  width:min(100%,900px);margin:0 auto}
+.hall{display:flex;flex-direction:column;gap:18px;
+  padding:20px 0 max(16px,env(safe-area-inset-bottom));
+  width:min(100%,1180px);margin:0 auto}
 .mast b{font-family:Lit,Georgia,serif;font-size:34px;font-weight:600;
   letter-spacing:-.025em;line-height:1}
 /* An explicit width, because auto-fit inside a shrink-to-fit flex item
@@ -500,7 +500,15 @@ h1{font:var(--type-headline);margin:0 auto 0 6px;
    thing actually being asked for — give each door about a third of the screen
    on a phone, where they stack, and half of it on a wider one, where they sit
    side by side and can afford to be tall. */
-.door-art{height:32dvh;min-height:150px;overflow:hidden;display:grid;gap:8px;
+/* The height is what is left, divided by two — not a fraction of the screen.
+   A fraction fits one phone and overflows the next, because the furniture
+   around the doors (title, names, padding) is a fixed number of pixels and
+   does not shrink with the viewport: 30dvh each landed exactly on a 844pt
+   phone and ran 60px off the end of a 667pt one. 338px is that furniture,
+   measured rather than guessed, and the floor is there for a screen so short
+   that the covers would stop being covers. */
+.door-art{height:max(140px,calc((100dvh - 338px) / 2));
+  overflow:hidden;display:grid;gap:8px;
   align-content:start;
   grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
   -webkit-mask-image:linear-gradient(#000 calc(100% - 34px),transparent);
@@ -514,14 +522,24 @@ h1{font:var(--type-headline);margin:0 auto 0 6px;
 /* A tracker with nothing in it has no covers, and an empty door that still
    takes half the screen is a hole. It gets a glyph in the middle of the space
    instead, which is the same answer the empty shelves give. */
-.door-none{height:32dvh;min-height:150px;display:grid;place-items:center}
+.door-none{height:max(140px,calc((100dvh - 338px) / 2));
+  display:grid;place-items:center}
 .door-none svg{width:40px;height:40px;fill:var(--ink-3);opacity:.3}
 @media (max-width:640px){
   .door-art{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
   .door b{font-size:24px}
 }
 @media (min-width:641px){
-  .door-art,.door-none{height:min(56dvh,560px)}
+  /* Wider window, bigger everything — the covers included. At 96px they were
+     the phone's size on a screen four times the width, which is the definition
+     of the thing being too far away. */
+  /* Side by side, so they share the width and each gets the whole height:
+     one row of furniture to subtract instead of two. */
+  .door-art,.door-none{height:min(calc(100dvh - 296px),640px)}
+  .door-art{grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+  .door{padding:16px;gap:14px}
+  .door b{font-size:30px}
+  .mast b{font-size:40px}
 }
 @media (max-width:640px){
   .hall{min-height:calc(100dvh - 120px);gap:26px;
@@ -652,11 +670,17 @@ select:hover,.chip:hover{background:var(--fill-2);color:var(--ink)}
    keep their own measure and stay centred inside it. */
 main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
   max(14px,env(safe-area-inset-left))}
+/* Outside a tracker there is no dock and no toolbar, so the room kept clear
+   for them is just a hole at the bottom of the screen — and it was enough of
+   one to push the two doors past the end of a phone and make the way in
+   scroll. It is the one screen in the app that should fit exactly. */
+body.outside main{padding-bottom:max(16px,env(safe-area-inset-bottom))}
 body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 
 /* clear the dock, plus the home indicator on gesture-nav phones */
 @media (max-width:640px){
   main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+  body.outside main{padding-bottom:max(16px,env(safe-area-inset-bottom))}
   #toast{bottom:calc(86px + env(safe-area-inset-bottom))}
 }
 .grid{display:grid;gap:18px 14px;
@@ -753,6 +777,18 @@ body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 .nowt .btn{margin-top:14px;background:var(--fill-3);color:var(--a11);
   font-weight:600;padding:0 22px}
 .nowt .btn:hover{background:var(--fill-2);color:var(--a11)}
+
+/* The shelf either side, parked one screen-width away in each direction and
+   carried along by the same transform as the one in the middle. `100vw` rather
+   than `100%` because the gap between them then comes out as the two paddings,
+   which is the gutter a pair of pages should have between them. */
+#main{position:relative}
+.peek{position:absolute;left:0;right:0;height:100dvh;overflow:hidden;
+  pointer-events:none;contain:paint}
+.peek.l{transform:translateX(-100vw)}
+.peek.r{transform:translateX(100vw)}
+.peek-none{padding:60px 20px;text-align:center;color:var(--ink-3);
+  font:var(--type-callout)}
 
 /* The waiting tiles. The shape of a cover, the colour of a fill, and a sheen
    that crosses them every second and a half so the screen reads as busy rather
@@ -1989,6 +2025,7 @@ function render(){
   // shelf with no rows.
   const inside = !!S.kind;
   $('#head').hidden = $('#dock').hidden = !inside;
+  document.body.classList.toggle('outside', !inside);
   /* What the app is called from outside it: the phone's app switcher, a
      browser tab, the PWA's own title bar. It said the tracker's name and
      stopped there, so three of the four screens shared one label. */
@@ -3383,9 +3420,13 @@ addEventListener('touchmove', ev => {
   // a hard stop feels like a bug where a stiff one feels like an edge.
   ev.preventDefault();
   dropHold();
+  if (!pan.built){ pan.built = true; buildPeeks(); }
   pan.dx = dx;
+  // translate3d rather than translateX: it is the form that gets the element
+  // its own compositor layer, which is the difference between a drag that
+  // tracks the finger and one that redraws the page on every frame.
   $('#main').style.transform =
-    `translateX(${dx * (shelfAt(dx < 0 ? 1 : -1) ? 1 : .3)}px)`;
+    `translate3d(${dx * (shelfAt(dx < 0 ? 1 : -1) ? 1 : .3)}px,0,0)`;
 }, { passive: false });
 
 addEventListener('touchend', () => {
@@ -3397,13 +3438,62 @@ addEventListener('touchend', () => {
   if (next && Math.abs(p.dx) > Math.min(innerWidth * PAN_TAKE, 130))
     return pageTo(next, dir);
   settle($('#main'), 0, '.2s cubic-bezier(.2,.8,.3,1)');
+  setTimeout(dropPeeks, 260);
 }, { passive: true });
 
 addEventListener('touchcancel', () => {
   dropHold();
-  if (pan && pan.axis === 'x') settle($('#main'), 0, '.2s ease-out');
+  if (pan && pan.axis === 'x'){
+    settle($('#main'), 0, '.2s ease-out');
+    setTimeout(dropPeeks, 260);
+  }
   pan = null;
 }, { passive: true });
+
+/* What is either side of you, drawn as soon as the drag is known to be one.
+   Without these the shelf slid off into black and the next one arrived from
+   black, which is a transition between two pages rather than a row of them:
+   the whole claim of the gesture is that the shelves are laid out side by side
+   and you are moving along them, and a black gap says they are not.
+
+   This is the ordinary way to build a pager — the slide either side already in
+   the DOM, the three of them moved as one — with one economy. A full shelf is
+   nine hundred covers and building two more of those on every drag would cost
+   more than the drag is worth, so a neighbour is only drawn as far as the eye
+   can reach: the first four dozen, clipped to the height of the screen. You
+   cannot scroll it while you are dragging it, so there is nothing below the
+   fold to see. On release the real shelf renders in its place at the same
+   scroll position, and the swap is invisible because the top of it is what was
+   already on screen.
+
+   They are built when the gesture commits to being horizontal rather than on
+   touchstart, so an ordinary scroll never pays for them. */
+function listFor(shelf){
+  const was = S.shelf;
+  S.shelf = shelf;
+  try { return shown(); } finally { S.shelf = was; }
+}
+
+function buildPeeks(){
+  const main = $('#main');
+  if (main.querySelector('.peek')) return;
+  // Line the panes up with the top of the SCREEN, not the top of the shelf:
+  // the page may be scrolled halfway down a long one, and the shelf you are
+  // moving to starts at its beginning.
+  const top = Math.max(0, scrollY - (main.getBoundingClientRect().top + scrollY));
+  for (const [side, by] of [['l', -1], ['r', 1]]){
+    const name = shelfAt(by);
+    if (!name) continue;
+    const list = listFor(name).slice(0, 48);
+    const el = document.createElement('div');
+    el.className = 'peek ' + side;
+    el.style.top = top + 'px';
+    el.innerHTML = list.length ? `<div class="grid">${list.map(card).join('')}</div>`
+      : `<div class="peek-none">${esc(name)} is empty</div>`;
+    main.appendChild(el);
+  }
+}
+const dropPeeks = () => { for (const el of document.querySelectorAll('.peek')) el.remove(); };
 
 /* A long press on a cover would otherwise raise the platform's own menu —
    "save image" and friends — over a gesture that now means something here. */
@@ -3434,6 +3524,8 @@ function pageTo(name, dir){
     if (went) return;
     went = true;
     main.style.transition = '';
+    // This rewrites #main, which takes the peek panes with it — the shelf that
+    // was a preview a moment ago is now the real one, at the same place.
     toShelf(name, null);                       // renders, and scrolls to the top
     main.style.transform = `translateX(${dir > 0 ? w : -w}px)`;
     void main.offsetWidth;                     // take the jump before animating
