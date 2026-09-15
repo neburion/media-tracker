@@ -580,7 +580,7 @@ select:hover,.chip:hover{background:var(--fill-2);color:var(--ink)}
   .dock i{display:grid;place-items:center;width:54px;height:30px;
     border-radius:var(--r-dot);transition:background .14s}
   .dock svg{width:22px;height:22px;fill:currentColor;stroke:none}
-  .dock span{font-size:10.5px;letter-spacing:.01em;font-weight:500}
+  .dock span{font:var(--type-caption2);font-weight:500}
   .dock button.on{color:var(--a11)}
   .dock button.on i{background:var(--a3)}
   .dock button.on span{font-weight:600}
@@ -892,11 +892,11 @@ body.selecting .dock{display:none}
   text-shadow:0 1px 3px rgba(0,0,0,.55);
   display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
   overflow:hidden}
-.tri-line{display:flex;align-items:baseline;gap:10px;font-size:12.5px;
+.tri-line{display:flex;align-items:baseline;gap:10px;font:var(--type-caption);
   color:rgba(255,255,255,.84);min-width:0}
 .tri-line span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tri-line em{font-style:normal;margin-left:auto;flex:none;
-  font-family:Mono,monospace;font-size:11.5px;color:rgba(255,255,255,.72)}
+  font-family:Mono,monospace;font-size:11px;color:rgba(255,255,255,.72)}
 .tri-words{display:flex;flex-wrap:wrap;gap:5px}
 .tri-words span{font-size:11px;padding:2px 8px;border-radius:var(--r-sm);
   background:rgba(255,255,255,.15);color:#fff}
@@ -920,7 +920,7 @@ body.selecting .dock{display:none}
 .swipe{display:flex;flex-direction:column;gap:2px;align-items:flex-start;
   background:none;border:0;padding:8px 2px;text-align:left;min-width:0}
 .swipe.r{align-items:flex-end;text-align:right}
-.swipe b{font-weight:600;font-size:13.5px;color:var(--tone,var(--ink-2));
+.swipe b{font:var(--type-footnote);font-weight:600;color:var(--tone,var(--ink-2));
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .swipe span{font:var(--type-caption);color:var(--ink-3)}
 .swipe:hover b{text-decoration:underline;text-underline-offset:3px}
@@ -964,7 +964,8 @@ body.selecting .dock{display:none}
 .scope:hover{background-color:var(--fill-2)}
 @media (max-width:640px){.scope{height:var(--tap);background-position:calc(100% - 15px) 20px,calc(100% - 11px) 20px}}
 
-.slab h2{font-size:14px;font-weight:600;margin:0 0 14px;letter-spacing:-.01em}
+.slab h2{font:var(--type-subhead);font-weight:600;margin:0 0 14px;
+  letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
 .slab h2 span{color:var(--ink-3);font-size:13px;font-family:Mono,monospace}
 /* The figures are sized by their own text and spread to both edges, which is
    not what equal columns do. Equal columns — `repeat(auto-fit,minmax(120px,
@@ -1302,7 +1303,7 @@ body.selecting .dock{display:none}
   font:var(--type-footnote);color:var(--ink-3)}
 .picks{display:flex;flex-wrap:wrap;gap:6px}
 .pick{height:34px;padding:0 14px;border:1px solid transparent;background:var(--fill-3);
-  border-radius:var(--r-md);font-size:13px;color:var(--ink-2)}
+  border-radius:var(--r-md);font:var(--type-footnote);color:var(--ink-2)}
 .pick:hover{background:var(--fill-2);color:var(--ink)}
 /* Same reasoning as the shelf chips, and the same fix. */
 /* Chosen. A tint and a weight, with the outline gone: a ring drawn round the
@@ -1322,7 +1323,7 @@ body.selecting .dock{display:none}
    under one was the kind's unit leaking onto a type that does not count. */
 .switch{display:flex;align-items:center;gap:12px}
 .switch button{height:44px;flex:1;border:1px solid transparent;background:var(--fill-3);
-  border-radius:var(--r-md);font-size:14px;font-weight:500;color:var(--ink-2)}
+  border-radius:var(--r-md);font:var(--type-subhead);font-weight:500;color:var(--ink-2)}
 .switch button[aria-pressed=true]{background:var(--sel);border-color:transparent;
   color:var(--ink);font-weight:600}
 /* Setting and Genre are the same pills as every other field, but many-of. The
@@ -1345,7 +1346,8 @@ body.selecting .dock{display:none}
 .sheet-foot{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--rule-2);
   padding-bottom:calc(12px + env(safe-area-inset-bottom));background:var(--card)}
 .btn{height:var(--tap);padding:0 20px;border:1px solid transparent;
-  background:var(--fill-3);border-radius:var(--r-md);font-size:14px;font-weight:500}
+  background:var(--fill-3);border-radius:var(--r-md);font:var(--type-subhead);
+  font-weight:500}
 .btn:hover{background:var(--fill-2);color:var(--ink)}
 .btn.primary{background:var(--a9);border-color:var(--a9);color:#fff;
   flex:1;font-weight:600}
@@ -1354,7 +1356,7 @@ body.selecting .dock{display:none}
 .btn.danger:hover{background:rgba(255,69,58,.18);color:var(--danger)}
 .thumb{width:74px;flex:none;aspect-ratio:2/3;object-fit:cover;
   border-radius:var(--r-lg);border:1px solid transparent;background:var(--fill-4)}
-.meta{font-size:11.5px;color:var(--ink-3);line-height:1.6;margin:0}
+.meta{font:var(--type-caption);color:var(--ink-3);line-height:1.6;margin:0}
 
 /* ── toast ──────────────────────────────────────────────────────────── */
 /* The toast was a white chip — the only light surface anywhere in the app, and
@@ -1700,7 +1702,15 @@ async function api(path, body){
   }
   const t = await r.text();
   let j = {};
-  try { j = t ? JSON.parse(t) : {}; } catch { j = { error: t.slice(0,200) }; }
+  try { j = t ? JSON.parse(t) : {}; }
+  catch {
+    /* Not JSON, which means something upstream answered instead of the app —
+       a proxy, a gateway, the stdlib's own 404 page. Its body is HTML, and
+       putting that on screen raw spills a doctype and a title tag into a
+       sentence. Take the tags out, collapse the whitespace, keep a clause. */
+    const plain = t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    j = { error: plain ? plain.slice(0, 120) : `${r.status} ${r.statusText}` };
+  }
   if (!r.ok) throw new Error(j.error || `${r.status} ${r.statusText}`);
   return j;
 }
@@ -1785,7 +1795,13 @@ async function load(){
     if (S.kind === null) enter(kindFromHash());
     else { fillPickers(); render(); }
   } catch (e) {
-    $('#main').innerHTML = `<div class="empty">Could not open the shelf.<br>${esc(e.message)}</div>`;
+    // The one failure a person can do something about, so it says what to do.
+    // The message underneath is the server's own words: "failed to fetch" is
+    // worth seeing, because it is the difference between the server being down
+    // and this phone being off the network.
+    $('#main').innerHTML = nowt('warn', 'Could not reach the tracker',
+      `Your library is on the server, not here. ${e.message}`,
+      { act:'retry', label:'Try again' });
   }
 }
 
@@ -2038,6 +2054,7 @@ const GLYPH = {
   find:  'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z',
   sift:  'M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z',
   done:  'M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z',
+  warn:  'M12 2 1 21h22L12 2zm1 15h-2v-2h2v2zm0-4h-2V9h2v4z',
 };
 const nowt = (glyph, title, line, action) => `<div class="nowt">
   <svg viewBox="0 0 24 24"><path d="${GLYPH[glyph]}"/></svg>
@@ -3361,6 +3378,10 @@ document.addEventListener('click', ev => {
     return render();
   }
   if (act.dataset.act === 'clear-filters'){ clearFilters(); return render(); }
+  if (act.dataset.act === 'retry'){
+    $('#main').innerHTML = `<div class="grid">${'<div class="skel"></div>'.repeat(6)}</div>`;
+    return load();
+  }
   if (act.dataset.act === 'edit'){
     // Pressed from Stats or from Group Sort it means "take me to the grid and
     // start choosing", not "start choosing on a screen with nothing to choose".
