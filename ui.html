@@ -418,23 +418,42 @@ h1{font:var(--type-headline);margin:0 auto 0 6px;
    and the chip strip made choosing between them a thing you did on the way
    past, with an "All" in front that mixed nine hundred manhwa into five films.
    So the app opens on neither, and you walk into one. */
-.hall{min-height:calc(100dvh - 170px);display:flex;flex-direction:column;
-  align-items:center;justify-content:center;gap:34px;padding:20px 0 40px}
+/* Top-aligned, not floating in the middle. A large title at the top left is
+   where every system app starts, and centring two cards in the void was what
+   made the screen read as a placeholder somebody had not finished. */
+.hall{display:flex;flex-direction:column;gap:22px;padding:28px 0 40px;
+  width:min(100%,640px);margin:0 auto}
 .mast b{font-family:Lit,Georgia,serif;font-size:34px;font-weight:600;
   letter-spacing:-.025em;line-height:1}
 /* An explicit width, because auto-fit inside a shrink-to-fit flex item
    resolves to one column and stacks the two doors into a list. */
-.portal{display:grid;gap:22px;width:min(100%,640px);
-  grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.portal{display:grid;gap:18px;width:100%;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+/* `min-width:0` is load-bearing: a grid item's automatic minimum size is its
+   content, and the content here is a row of cover images whose intrinsic width
+   is whatever the publisher uploaded. Without it the track ignores the 260px
+   minimum, grows to fit one full-size cover, and the door runs off the screen. */
 .door{
-  display:flex;flex-direction:column;gap:10px;text-align:left;
-  padding:30px 28px;border:1px solid transparent;background:var(--card);
-  border-radius:var(--r-xl);color:inherit;transition:border-color .14s,transform .14s;
+  display:flex;flex-direction:column;gap:14px;text-align:left;min-width:0;
+  padding:14px;border:1px solid transparent;background:var(--card);
+  border-radius:var(--r-xl);color:inherit;transition:transform .14s,background .14s;
 }
-.door:hover{border-color:var(--a7);transform:translateY(-2px)}
-.door b{font-family:Lit,Georgia,serif;font-size:27px;font-weight:600;
-  letter-spacing:-.02em;line-height:1}
-.door span{font-size:13px;color:var(--ink-3)}
+.door:hover{background:var(--g3);transform:translateY(-2px)}
+.door:active{transform:scale(.99)}
+/* The covers. Five across whatever width the door came out at, so they stay a
+   row rather than becoming a scroll: the point is the glance, not the browse.
+   Each one is cropped to the same 2:3 as every other cover in the app. */
+.door-art{display:flex;gap:7px;min-width:0}
+.door-art img{flex:1;min-width:0;aspect-ratio:2/3;object-fit:cover;display:block;
+  border-radius:var(--r-md);background:var(--fill-4)}
+.door-line{display:flex;align-items:baseline;gap:10px;padding:0 4px 4px}
+.door b{font-family:Lit,Georgia,serif;font-size:24px;font-weight:600;
+  letter-spacing:-.02em;line-height:1.1}
+.door span{font:var(--type-footnote);color:var(--ink-3);margin-left:auto}
+/* A tracker with nothing in it has no covers to show, so the door is just its
+   line — and it gets the height back that the artwork would have taken, or it
+   reads as a card with a hole in it. */
+.door:not(:has(.door-art)) .door-line{padding:10px 4px}
 @media (max-width:640px){
   .hall{min-height:calc(100dvh - 120px);gap:26px;
     padding:8px max(14px,env(safe-area-inset-left)) 30px;align-items:stretch}
@@ -513,9 +532,16 @@ select:hover,.chip:hover{border-color:var(--g8);color:var(--ink)}
   .dock button.on{color:var(--a11)}
   .dock button.on i{background:var(--a3)}
   .dock button.on span{font-weight:600}
-  /* The view switchers live in the dock now; keeping both would be two ways to
-     do one thing. Add is not a view, so it stays in the toolbar. */
-  header .bar [data-view]{display:none}
+  /* Group Sort and Group Edit are the same kind of thing — a way of going
+     through a shelf in bulk — and they were in different places, one a view in
+     the dock and one an icon in the toolbar, which made them look like
+     unrelated features. They are side by side in the dock now. The toolbar
+     keeps what acts on what you are looking at right now: filter, and add.
+     Going back to the trackers is the ← at the leading edge, which is where a
+     way back belongs and is why it left the dock: a tab bar is for places you
+     go, not for the way out. */
+  header .bar [data-view],
+  header .bar [data-act=edit]{display:none}
 }
 
 /* Add is the one thing here that creates rather than navigates, so on a phone
@@ -706,7 +732,7 @@ body.selecting .fab{display:none}
    short window from shrinking the whole screen into a stamp. */
 .solo{width:min(100%,max(300px,min(58dvh,560px) * 2 / 3));margin:0 auto;
   display:flex;flex-direction:column;gap:14px}
-.solo-head{display:flex;align-items:baseline;gap:8px}
+.solo-head{display:flex;align-items:center;gap:8px}
 .solo-h{font-family:Lit,Georgia,serif;font-size:20px;font-weight:600;margin:0;
   letter-spacing:-.01em}
 .solo-head .count{margin-left:auto;font-family:Mono,monospace;font-size:12px;
@@ -799,6 +825,25 @@ body.selecting .fab{display:none}
 .slab{background:var(--card);border:1px solid transparent;
   border-radius:var(--r-xl);padding:20px}
 @media (max-width:640px){.slab{border-color:transparent;background:var(--card)}}
+/* The scope, as a chip rather than as a form field: it is a heading you can
+   change, so it should look like the heading it replaced and not like a
+   dropdown somebody left in a panel. */
+.scope{
+  -webkit-appearance:none;appearance:none;border:0;
+  background:var(--fill-3);color:var(--ink);
+  font:var(--type-headline);font-family:Lit,Georgia,serif;
+  height:36px;padding:0 30px 0 12px;border-radius:var(--r-lg);
+  /* Size to the word it is showing, not to the space it is in: a heading that
+     stretches to fill its card stops reading as a heading. */
+  width:fit-content;max-width:100%;flex:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink-3) 50%),
+                   linear-gradient(135deg,var(--ink-3) 50%,transparent 50%);
+  background-position:calc(100% - 15px) 16px,calc(100% - 11px) 16px;
+  background-size:4px 4px,4px 4px;background-repeat:no-repeat;
+}
+.scope:hover{background-color:var(--fill-2)}
+@media (max-width:640px){.scope{height:var(--tap);background-position:calc(100% - 15px) 20px,calc(100% - 11px) 20px}}
+
 .slab h2{font-size:14px;font-weight:600;margin:0 0 14px;letter-spacing:-.01em}
 .slab h2 span{color:var(--ink-3);font-size:13px;font-family:Mono,monospace}
 /* The figures are sized by their own text and spread to both edges, which is
@@ -1093,9 +1138,38 @@ body.selecting .fab{display:none}
 .stepper button{width:var(--tap);height:40px;border:1px solid transparent;
   background:var(--fill-3);border-radius:var(--r-md);font-size:17px;flex:none}
 .stepper button:hover{border-color:var(--g8);color:var(--ink)}
-.stars{display:flex;align-items:center;gap:10px}
-.stars input[type=range]{flex:1;accent-color:var(--a9);height:38px;min-width:0}
-.stars output{font-family:Mono,monospace;font-size:17px;width:58px;text-align:right}
+/* A rating out of ten, as ten things rather than as a slider.
+   The slider was wrong twice over. It looked wrong — a browser's range input
+   is one of the few controls that still cannot be styled into agreeing with
+   anything around it, so it sat in the middle of the form as a piece of
+   somebody else's interface. And it worked wrong: dragging a 200px track to
+   land on the seventh of eleven positions is a fiddly way to say "7", on a
+   phone especially, where your thumb covers the number you are aiming at.
+   Ten bars, tap the one you mean. The tap target is the full height of the
+   row; the bar you see is 10px of it, which is the part that has to look like
+   a meter rather than like a row of buttons. */
+.stars{display:flex;align-items:center;gap:14px}
+.rate{display:flex;gap:4px;flex:1;min-width:0}
+.pip{flex:1;min-width:0;height:38px;padding:0;border:0;background:none;
+  display:grid;place-items:center;border-radius:var(--r-sm)}
+.pip i{display:block;width:100%;height:10px;border-radius:3px;
+  background:var(--fill-2);transition:background .12s}
+.pip[aria-pressed=true] i{background:var(--a9)}
+.pip:hover i{background:var(--fill-1)}
+.pip[aria-pressed=true]:hover i{background:var(--a10)}
+.pip:active{transform:none}
+.stars output{font-family:Mono,monospace;font-size:19px;min-width:22px;
+  text-align:right;font-variant-numeric:tabular-nums}
+/* The footer line: the word the number means, and the way to take it back.
+   Clear lives down here rather than in the card because it is not part of
+   setting a rating, it is the escape hatch from having set one. */
+.tierline{display:flex;align-items:baseline;gap:12px;margin:7px 0 0 16px}
+/* A text button with a finger-sized target: 18px of line inside 44px of
+   padding, with the padding taken back out again as negative margin so the
+   footer row stays the height of its text. */
+.linkish{background:none;border:0;color:var(--a11);font:var(--type-footnote);
+  padding:13px 8px;margin:-13px -6px -13px auto}
+.linkish:active{opacity:.55}
 /* "Best of the Genre" will not fit in a 58px column beside the slider, so the
    number keeps that column and the word gets the line underneath. The line is
    reserved even when empty, or clearing a rating makes the sheet jump. */
@@ -1104,7 +1178,7 @@ body.selecting .fab{display:none}
    card, inset to the same 16px as the label above it, in the same footnote as
    the label. The line is reserved even when empty, or clearing a rating makes
    the form jump. */
-.tier{display:block;margin:7px 0 0 16px;min-height:18px;
+.tier{display:block;min-height:18px;
   font:var(--type-footnote);color:var(--ink-3)}
 .picks{display:flex;flex-wrap:wrap;gap:6px}
 .pick{height:34px;padding:0 14px;border:1px solid transparent;background:var(--fill-3);
@@ -1183,11 +1257,12 @@ body.selecting .fab{display:none}
   .seek{height:var(--tap)}
   .field textarea{min-height:88px}
   .stepper button{height:var(--tap)}
-  .stars input[type=range]{height:var(--tap)}
+
   /* 44px is the floor, and these two were the ones under it: a shelf pill at
      40 and a pager step at 34. Both are one-tap controls in the middle of a
      sheet, which is to say both are exactly what the floor is for. */
-  .picks .pick,#e-rating-clear{height:var(--tap);padding:0 14px}
+  .picks .pick{height:var(--tap);padding:0 14px}
+  .pip{height:var(--tap)}
   .pager .step{height:var(--tap)}
   .drawer select,.drawer .chip{height:44px}
   .switch button{height:var(--tap)}
@@ -1342,8 +1417,8 @@ dialog .sheet-foot{border-top:0;padding:6px 0 0}
 <nav class="dock" id="dock" aria-label="Views" hidden>
   <button data-view="shelf"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></i><span>Shelf</span></button>
   <button data-view="solo"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H8V4h12v12z"/></svg></i><span>Group Sort</span></button>
+  <button data-act="edit" title="Group Edit"><i><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></i><span>Group Edit</span></button>
   <button data-view="stats"><i><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></i><span>Stats</span></button>
-  <button data-act="home"><i><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></i><span>Trackers</span></button>
 </nav>
 
 <button class="fab" id="fab" hidden data-act="new" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
@@ -1730,6 +1805,12 @@ function render(){
   // that was closed. So leaving the shelf drops them, and the control that
   // opens them is not there to press.
   const onShelf = S.view === 'shelf';
+  /* The search field and the shelf picker are the shelf's own controls, and
+     they were sitting over Group Sort and Stats as well — so those screens
+     opened under two rows of somebody else's chrome, with a shelf picker on
+     top of a view that is not the shelf. They leave with the grid. */
+  $('.seek').hidden = !onShelf;
+  $('#tabs').hidden = !onShelf;
   const filtered = S.type || S.pub || S.seen || S.sort !== 'updated'
                    || AXES.some(a => S[a]);
   for (const b of document.querySelectorAll('[data-act=filter]')){
@@ -1739,7 +1820,10 @@ function render(){
   // Group Edit is a way of acting on the grid, so it goes where the grid is —
   // and it lights while the selection it asked for is being made.
   for (const b of document.querySelectorAll('[data-act=edit]')){
-    b.hidden = !onShelf;
+    // The one in the dock stays put whatever you are looking at, because a tab
+    // bar that changes shape as you move around it is a tab bar you cannot aim
+    // at. It takes you back to the grid itself — see the handler.
+    b.hidden = !onShelf && !b.closest('.dock');
     b.classList.toggle('on', S.picking);
   }
   if (!onShelf) $('#drawer').classList.remove('open');
@@ -1750,14 +1834,29 @@ function render(){
   renderShelf();
 }
 
+/* The way in. It was a title and two grey slabs floating in the middle of an
+   otherwise empty screen, and the reason it looked bad is that it was the only
+   screen in the app with nothing on it: every other view is wall-to-wall
+   artwork, and this one — the first thing you see — had a word and a number.
+   So the doors show what is behind them. Five covers off the top of each
+   tracker, most recently touched first, which is both a picture of the thing
+   and a true statement about it: that is what you were last reading. */
 function renderPortal(){
   $('#main').innerHTML = `<div class="hall">
     <div class="mast"><b>Media Tracker</b></div>
     <div class="portal">${S.data.meta.kind.map(k => {
-    const n = S.data.series.filter(x => x.kind === k).length;
+    const mine = S.data.series.filter(x => x.kind === k);
+    const art = mine.filter(x => x.coverId)
+      .sort((a, b) => String(b.updated).localeCompare(String(a.updated)))
+      .slice(0, 5);
     return `<button class="door" data-door="${esc(k)}">
-      <b>${esc(k)}</b>
-      <span>${n} ${n === 1 ? 'title' : 'titles'}</span>
+      ${art.length ? `<div class="door-art">${art.map(x =>
+        `<img src="/cover/${x.coverId}" alt="" loading="lazy" decoding="async">`
+      ).join('')}</div>` : ''}
+      <div class="door-line">
+        <b>${esc(k)}</b>
+        <span>${mine.length} ${mine.length === 1 ? 'title' : 'titles'}</span>
+      </div>
     </button>`;
   }).join('')}</div>
   </div>`;
@@ -1837,6 +1936,27 @@ function bars(rows, total, tone){
     </div>`).join('')}</div>`;
 }
 
+/* Which shelf a view is about, as that view's own control.
+   Stats and Group Sort are both scoped to a shelf and both have a good reason
+   to be — a mean rating over Dropped and Current at once is a number about no
+   shelf in particular — but they were reading that scope off the grid's tab
+   strip, which sat above them looking like it belonged to them. It did not:
+   it is the shelf's picker, it does eight things, seven of which are about a
+   screen you are not on. So the strip goes with the grid and the two views
+   that need a shelf say which one they are on, in one control, in the heading
+   where the answer is already being reported. */
+const scopePicker = () => `<select class="scope" id="scope" aria-label="Which shelf">${
+  [...S.data.meta.status, 'All'].map(v =>
+    `<option value="${esc(v)}"${v === S.shelf ? ' selected' : ''}>${
+      esc(v === 'All' ? `All of ${S.kind}` : v)}</option>`).join('')}</select>`;
+
+document.addEventListener('change', ev => {
+  if (ev.target.id !== 'scope') return;
+  S.shelf = ev.target.value;
+  if (S.view === 'solo') return enterSolo();
+  render();
+});
+
 function renderStats(st){
   // One shelf's numbers, the shelf being whichever tab is selected. A mean
   // rating over nine hundred manhwa and five films was a number about no shelf
@@ -1849,7 +1969,7 @@ function renderStats(st){
     : '';
   $('#main').innerHTML = `<div class="panel">
     <div class="slab">
-      <h2>${esc(S.shelf === 'All' ? `All of ${S.kind}` : S.shelf)}
+      <h2>${scopePicker()}
         <span>${st.total} of ${poolOf().length}</span></h2>
       <div class="figs">
         <div class="fig"><b>${st.total}</b><span>titles</span></div>
@@ -2140,7 +2260,7 @@ function renderSolo(){
   const s = soloNow();
   if (!s){
     $('#main').innerHTML = `<div class="solo">
-      <div class="solo-head"><h2 class="solo-h">Group Sort</h2>
+      <div class="solo-head">${scopePicker()}
         <span class="count">${q.queue.length ? 'done' : 'nothing waiting'}</span></div>
       <div class="empty">${q.queue.length
         ? `That is all ${q.queue.length} of them.`
@@ -2156,7 +2276,7 @@ function renderSolo(){
   const gaps = soloGaps(s);
   $('#main').innerHTML = `<div class="solo">
     <div class="solo-head">
-      <h2 class="solo-h">Group Sort</h2>
+      ${scopePicker()}
       <span class="count">${q.at + 1} of ${q.queue.length}</span>
     </div>
     <div class="tri" id="tri">
@@ -2464,12 +2584,18 @@ function openSheet(id, queue){
       <div class="field">
         <span class="lbl">Rating</span>
         <div class="stars">
-          <input type="range" id="e-rating" min="0" max="10" step="1"
-                 value="${grade ?? 0}">
-          <output id="e-rating-out">${grade === null ? 'None' : grade}</output>
-          <button class="pick" id="e-rating-clear">Clear</button>
+          <div class="rate" id="e-rate" role="group" aria-label="Rating out of ten">
+            ${Array.from({length: 10}, (_, i) => i + 1).map(n =>
+              `<button class="pip" data-rate="${n}" aria-label="${n} out of ten"
+                 aria-pressed="${grade !== null && n <= grade}"><i></i></button>`).join('')}
+          </div>
+          <output id="e-rating-out">${grade === null ? '–' : grade}</output>
+          <input type="hidden" id="e-rating" value="${grade ?? 0}">
         </div>
-        <span class="tier" id="e-rating-tier">${grade === null ? '' : esc(TIER[grade])}</span>
+        <div class="tierline">
+          <span class="tier" id="e-rating-tier">${grade === null ? '' : esc(TIER[grade])}</span>
+          <button class="linkish" id="e-rating-clear">Clear</button>
+        </div>
       </div>
 
       <div class="field">
@@ -2581,7 +2707,7 @@ async function saveSheet(step = 1){
                      : num($('#e-chapter')),
     tome:    num($('#e-tome')),
     season:  num($('#e-season')),
-    rating:  $('#e-rating-out').textContent === 'None' ? null : Number($('#e-rating').value),
+    rating:  $('#e-rating-out').textContent === '–' ? null : Number($('#e-rating').value),
     status:  $('#sheet [data-status][aria-pressed=true]')?.dataset.status || '',
     pub:     $('#sheet [data-pub][aria-pressed=true]')?.dataset.pub || '',
     type:    $('#sheet [data-type][aria-pressed=true]')?.dataset.type || '',
@@ -2830,14 +2956,16 @@ document.addEventListener('click', async ev => {
   if (hit('[data-close]') || ev.target.id === 'veil') return closeSheet();
   if (hit('[data-save]')) return saveSheet();
 
-  if (ev.target.id === 'e-rating-clear'){
-    // The slider still cannot express "unrated": 0 is a real score. So the
-    // output element carries that state and Clear puts it back.
-    $('#e-rating').value = 0;
-    $('#e-rating-out').textContent = 'None';
-    $('#e-rating-tier').textContent = '';
-    return;
+  // Ten bars, and the one you touch is the score. Tapping the bar that is
+  // already the score takes the rating off again, which is the gesture people
+  // try on a control like this before they look for a Clear button.
+  const pip = hit('.pip');
+  if (pip){
+    const n = Number(pip.dataset.rate);
+    return setRating(n === Number($('#e-rating').value)
+                     && $('#e-rating-out').textContent !== '–' ? null : n);
   }
+  if (ev.target.id === 'e-rating-clear') return setRating(null);
 
   if (hit('[data-trash]')){
     const s = byId(S.open);
@@ -2897,12 +3025,66 @@ document.addEventListener('click', async ev => {
   }
 });
 
+/* 0 is a real score, so "unrated" cannot be a number: the output element
+   carries that state and everything that reads the rating back checks it. */
+function setRating(n){
+  $('#e-rating').value = n ?? 0;
+  $('#e-rating-out').textContent = n === null ? '–' : fmt(n);
+  $('#e-rating-tier').textContent = n === null ? '' : TIER[n];
+  for (const b of document.querySelectorAll('#e-rate .pip'))
+    b.setAttribute('aria-pressed', n !== null && Number(b.dataset.rate) <= n);
+}
+
+/* ── swiping between shelves ─────────────────────────────────────────────
+   The shelf picker is a row of eight chips that has to be scrolled sideways to
+   reach the far end of, which means changing shelf on a phone is: scroll the
+   strip, aim at a 34px chip, tap. The shelves are a flat ordered list and the
+   grid under them fills the screen, so the gesture is already obvious — put a
+   thumb on the covers and push them aside.
+
+   The rules for telling a swipe from a scroll are the fiddly part. It has to
+   be mostly sideways (twice as much x as y) and it has to be a real distance
+   (56px), because a vertical flick with a few pixels of drift is the commonest
+   thing anybody does on this screen and it must never change shelf. It is
+   ignored on any screen that is not the grid, while the sheet is open, and
+   inside the select-mode bar, where a drag means something else. */
+let swipeFrom = null;
+
+addEventListener('touchstart', ev => {
+  if (S.view !== 'shelf' || S.open || ev.touches.length !== 1) return;
+  if (ev.target.closest('.tabs, .drawer, .bulk, .sheet, input, select, textarea')) return;
+  const t = ev.touches[0];
+  swipeFrom = { x: t.clientX, y: t.clientY };
+}, { passive: true });
+
+addEventListener('touchend', ev => {
+  const from = swipeFrom;
+  swipeFrom = null;
+  if (!from || S.view !== 'shelf' || S.open) return;
+  const t = ev.changedTouches[0];
+  const dx = t.clientX - from.x, dy = t.clientY - from.y;
+  if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 2) return;
+  stepShelf(dx < 0 ? 1 : -1);
+}, { passive: true });
+
+/* Left goes forward, the way a page does. The ends do not wrap: arriving back
+   at Current after Dropped without asking for it is disorienting, and the end
+   of the list is a thing a thumb can feel. */
+function stepShelf(by){
+  const all = [...S.data.meta.status, 'All'];
+  const at = all.indexOf(S.shelf);
+  const next = at + by;
+  if (at === -1 || next < 0 || next >= all.length) return;
+  S.shelf = all[next];
+  if (S.picked.size) S.picked.clear();
+  render();
+  // Keep the chip you landed on in view, since the strip is scrollable and the
+  // one that is lit may be off the end of it.
+  const chip = $(`.tab[data-s="${CSS.escape(S.shelf)}"]`);
+  if (chip) chip.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+
 document.addEventListener('input', ev => {
-  if (ev.target.id === 'e-rating'){
-    const v = Number(ev.target.value);
-    $('#e-rating-out').textContent = fmt(v);
-    $('#e-rating-tier').textContent = TIER[v];
-  }
   // The card screen's copy. No tier word beside it: the card is already tall
   // and the number is the part he is setting.
   if (ev.target.id === 's-rating')
@@ -2974,7 +3156,12 @@ document.addEventListener('click', ev => {
   // Group Edit is editing a selection and there is no selection yet, so the
   // button is the way into making one, with the bar already saying so. Pressing
   // it again while it is lit is the way back out.
-  if (act.dataset.act === 'edit') setPicking(!S.picking, 'edit');
+  if (act.dataset.act === 'edit'){
+    // Pressed from Stats or from Group Sort it means "take me to the grid and
+    // start choosing", not "start choosing on a screen with nothing to choose".
+    if (S.view !== 'shelf'){ S.view = 'shelf'; S.solo = null; setPicking(true, 'edit'); }
+    else setPicking(!S.picking, 'edit');
+  }
   if (act.dataset.act === 'new') $('#dlg').showModal();
   if (act.dataset.act === 'home') goTo(null);
 });
