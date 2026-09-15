@@ -23,6 +23,7 @@ of it, seeding is additive, and edits made here never travel back. See README.
 """
 import argparse
 import base64
+import gzip
 import hashlib
 import hmac
 import html
@@ -1546,20 +1547,37 @@ class Handler(BaseHTTPRequestHandler):
                 "/login?" + urlencode({"next": safe_next(self.path)}))
         return self._send({"error": "not logged in"}, 401)
 
-    def _send(self, obj, code=200, headers=()):
-        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+    def _squeeze(self, body, ctype):
+        """gzip a body if it is text, worth compressing, and asked for.
+
+        The two things this serves on every single open are the UI (140 KB of
+        HTML with the whole app inline) and the library (440 KB of JSON), both
+        `no-store` because one is the app and the other is the truth. Neither
+        can be cached, so both are paid for every time the phone opens the
+        tracker — and both are text, which is to say both are about six times
+        larger than they need to be on the wire. Covers and fonts are left
+        alone: woff2 and jpeg are already compressed, and running deflate over
+        them spends CPU to add bytes.
+        """
+        if len(body) < 1024 or "gzip" not in (
+                self.headers.get("Accept-Encoding") or ""):
+            return body, None
+        if not (ctype.startswith("text/")
+                or ctype.startswith("application/json")):
+            return body, None
+        return gzip.compress(body, 6), "gzip"
+
+    def _write(self, body, ctype, code=200, headers=(), cache=False):
+        body, enc = self._squeeze(body, ctype)
         self.send_response(code)
         for k, v in headers:
             self.send_header(k, v)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
-
-    def _bytes(self, body, ctype, cache=False):
-        self.send_response(200)
         self.send_header("Content-Type", ctype)
+        if enc:
+            self.send_header("Content-Encoding", enc)
+        # Anything in front of this — a tunnel, a proxy, a browser cache — has
+        # to know that the body it holds depends on what the client asked for.
+        self.send_header("Vary", "Accept-Encoding")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control",
                          "public, max-age=31536000, immutable" if cache
@@ -1567,15 +1585,15 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _send(self, obj, code=200, headers=()):
+        body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self._write(body, "application/json; charset=utf-8", code, headers)
+
+    def _bytes(self, body, ctype, cache=False):
+        self._write(body, ctype, 200, (), cache)
+
     def _html(self, body, code=200, headers=()):
-        self.send_response(code)
-        for k, v in headers:
-            self.send_header(k, v)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
-        self.end_headers()
-        self.wfile.write(body)
+        self._write(body, "text/html; charset=utf-8", code, headers)
 
     def _redirect(self, to, code=303):
         self.send_response(code)
