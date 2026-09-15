@@ -692,6 +692,19 @@ body.selecting .fab{display:none}
   font-weight:600;padding:0 22px}
 .nowt .btn:hover{background:var(--fill-2);color:var(--a11)}
 
+/* The waiting tiles. The shape of a cover, the colour of a fill, and a sheen
+   that crosses them every second and a half so the screen reads as busy rather
+   than as broken. Stopped entirely for anyone who has asked the system for
+   less motion — a looping animation is exactly what that setting is about. */
+.skel{aspect-ratio:2/3;border-radius:var(--r-lg);background:var(--fill-4);
+  position:relative;overflow:hidden}
+.skel::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.055) 50%,
+                             transparent 80%);
+  transform:translateX(-100%);animation:sheen 1.5s ease-in-out infinite}
+@keyframes sheen{to{transform:translateX(100%)}}
+@media (prefers-reduced-motion:reduce){.skel::after{animation:none}}
+
 /* ── select mode ────────────────────────────────────────────────────────
    Half of Hold is already sorted and he can see which half at a glance. That
    is a judgement no query makes, and 153 separate saves is not a way to record
@@ -1399,12 +1412,15 @@ dialog h2{font:var(--type-title3);font-family:Lit,Georgia,serif;
    browser gives [hidden], so a series with no alternative names was still
    getting the empty strip and its border. Say it explicitly. */
 #art .names[hidden]{display:none}
-#art .names .name{height:28px;padding:0 11px;border:1px solid transparent;
-  background:var(--fill-3);color:var(--ink-2);border-radius:999px;font-size:12px;
+#art .names .name{height:30px;padding:0 12px;border:1px solid transparent;
+  background:var(--fill-3);color:var(--ink-2);border-radius:var(--r-md);
+  font:var(--type-footnote);
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#art .names .name:hover{border-color:var(--a7);color:var(--ink)}
-#art .names .name[aria-pressed=true]{border-color:var(--a9);color:var(--ink);
-  background:var(--sunk)}
+#art .names .name:hover{background:var(--fill-2);color:var(--ink)}
+/* Chosen is a raised surface, the same as every other chosen thing here — not
+   a ring, which was the one selection style left over from the old scheme. */
+#art .names .name[aria-pressed=true]{background:var(--sel);color:var(--ink);
+  font-weight:600}
 #art .body{flex:1;overflow-y:auto;padding:14px 16px 18px}
 #art .shots{display:grid;gap:12px;
   grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}
@@ -1414,7 +1430,7 @@ dialog h2{font:var(--type-title3);font-family:Lit,Georgia,serif;
 .shot{position:relative;padding:0;border:1px solid transparent;background:var(--fill-4);
   border-radius:var(--r-lg);overflow:hidden;aspect-ratio:2/3;cursor:pointer}
 .shot img{width:100%;height:100%;object-fit:cover;display:block}
-.shot:hover,.shot:focus-visible{border-color:var(--a7);outline:none}
+.shot:hover{border-color:var(--a7)}
 .shot em{position:absolute;left:0;right:0;bottom:0;font-style:normal;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-family:Mono,monospace;font-size:10px;color:#fff;padding:10px 5px 4px;
@@ -1493,7 +1509,15 @@ dialog .sheet-foot .btn.primary{background:var(--a9);color:#fff}
   <div class="tabs" id="tabs"></div>
 </header>
 
-<main id="main"><div class="empty">Opening the shelf…</div></main>
+<!-- What the app looks like while it is waiting for the library. This is in
+     the document rather than drawn by script on purpose: the worker serves
+     this file off the disk, so these tiles are on screen in the first frame,
+     before the request for the data has been answered — which is the whole
+     difference between an app that is opening and a page that is loading. -->
+<main id="main"><div class="grid" id="skel">
+  <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+  <div class="skel"></div><div class="skel"></div><div class="skel"></div>
+</div></main>
 
 <nav class="dock" id="dock" aria-label="Views" hidden>
   <button data-view="shelf"><i><svg viewBox="0 0 24 24"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z"/></svg></i><span>Shelf</span></button>
