@@ -138,7 +138,32 @@ async function smoke(){
 
   document.querySelector('[data-close]').click();
   await wait(500);
-  say('editor closes', !vis(document.querySelector('.sheet.open')) || 'still open');
+  say('cancel closes the editor', !vis(document.querySelector('.sheet.open')) || 'still open');
+
+  // The round trip, which is the only thing in here that proves the app still
+  // does its job: type a number, press the button, ask the server what it
+  // stored. Every other check says the UI is drawn; this one says it works.
+  // The database under this is a throwaway, so writing to it costs nothing.
+  const target = (S.data.series || [])[0];
+  openSheet(target.id);
+  await wait(400);
+  const field = document.querySelector('#e-progress input');
+  const was = Number(field.value || 0);
+  field.value = String(was + 7);
+  field.dispatchEvent(new Event('input', { bubbles: true }));
+  document.querySelector('[data-save]').click();
+  await wait(1600);
+  const fresh = await (await fetch('/api/library')).json();
+  const now = fresh.series.find(x => x.id === target.id);
+  say('save writes to the database', Number(now.chapter) === was + 7
+      || `asked for ${was + 7}, the server has ${now.chapter}`);
+  // Saving from a shelf you are walking does not close the sheet, it moves to
+  // the next series — that is the whole point of the pager. So the assertion
+  // is that the editor MOVED ON, whichever way it did it.
+  say('save leaves the entry',
+      !vis(document.querySelector('.sheet.open')) || S.open !== target.id
+      || 'still sitting on the same series with the sheet open');
+
   say('no script errors', window.__errs.length === 0 || window.__errs.join(' | '));
   return out;
 }
