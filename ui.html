@@ -599,15 +599,13 @@ select:hover,.chip:hover{background:var(--fill-2);color:var(--ink)}
 /* Add is the one thing here that creates rather than navigates, so on a phone
    it leaves the row of view switches and becomes the floating button — the
    same split Signal makes between its nav bar and its compose button. */
-/* The floating add button is gone and the + went back into the toolbar, where
-   the other two actions on a phone already live.
-   It was there because the toolbar used to be a mess on a phone — the tally
-   hid, the auto margin went with it, and the icons ended up leaning against
-   the title with the right half of the bar empty. A button floating over the
-   shelf was a way around a bar that had stopped working. The bar works now, so
-   the button can go back to it, and the last thing permanently parked on top
-   of somebody's cover art goes away with it. */
-.fab{display:none}
+/* The floating add button used to live here. It existed because the toolbar
+   was broken on a phone — the tally hid at 460px, the auto margin that pushed
+   the actions right went with it, and the icons ended up leaning against the
+   title — so a button floating over the shelf was a way around a bar that had
+   stopped working. The bar works now and + is back in it, so the button, its
+   markup and the line of render() that hid it on the sort screen are all
+   gone rather than left behind as a hidden element nobody can reach. */
 
 /* ── shelf ──────────────────────────────────────────────────────────── */
 /* No width cap. A measure exists for prose, and a wall of covers is not
@@ -618,7 +616,7 @@ select:hover,.chip:hover{background:var(--fill-2);color:var(--ink)}
 main{padding:var(--gap) max(14px,env(safe-area-inset-right)) 96px
   max(14px,env(safe-area-inset-left))}
 body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
-body.selecting .fab{display:none}
+
 /* clear the dock, plus the home indicator on gesture-nav phones */
 @media (max-width:640px){
   main{padding-bottom:calc(96px + env(safe-area-inset-bottom))}
@@ -1553,7 +1551,11 @@ dialog .sheet-foot .btn.primary{background:var(--a9);color:#fff}
     <div class="filt act"><button class="chip" id="f-clear">Reset filters</button></div>
   </div>
 
-  <div class="tabs" id="tabs"></div>
+  <!-- A tablist, said out loud. The chips have carried role="tab" since they
+       were written, but a tab without a tablist around it is a button with a
+       misleading role: the relationship is what tells a screen reader there
+       are eight of these and which one is current. -->
+  <div class="tabs" id="tabs" role="tablist" aria-label="Shelves"></div>
 </header>
 
 <!-- What the app looks like while it is waiting for the library. This is in
@@ -1572,8 +1574,6 @@ dialog .sheet-foot .btn.primary{background:var(--a9);color:#fff}
   <button data-act="edit" title="Group Edit"><i><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zm17.71-10.21a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></i><span>Group Edit</span></button>
   <button data-view="stats"><i><svg viewBox="0 0 24 24"><path d="M4 9h4v11H4zM10 4h4v16h-4zM16 13h4v7h-4z"/></svg></i><span>Stats</span></button>
 </nav>
-
-<button class="fab" id="fab" hidden data-act="new" aria-label="Add a series"><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg></button>
 
 <div class="veil" id="veil"></div>
 <aside class="sheet" id="sheet" aria-hidden="true"></aside>
@@ -1598,7 +1598,11 @@ dialog .sheet-foot .btn.primary{background:var(--a9);color:#fff}
   <button class="chip go" id="bulk-walk">Edit</button>
 </div>
 
-<div id="toast"><span id="toast-msg"></span><button id="toast-do" hidden></button></div>
+<!-- Polite, so what it says is read out after whatever is being read now
+     rather than interrupting it: every one of these reports something that has
+     already happened. -->
+<div id="toast" role="status" aria-live="polite">
+  <span id="toast-msg"></span><button id="toast-do" hidden></button></div>
 
 <dialog id="art">
   <div class="wrap">
@@ -1936,11 +1940,14 @@ function render(){
   // shelf with no rows.
   const inside = !!S.kind;
   $('#head').hidden = $('#dock').hidden = !inside;
-  // Add is the one thing on screen that is not about the card in front of him,
-  // and on a phone the floating button sits exactly where the right-hand half
-  // of that card's legend is. Same call select mode's bar already makes.
-  $('#fab').hidden = !inside || S.view === 'solo';
-  document.title = inside ? `${S.kind} · Media Tracker` : 'Media Tracker';
+  /* What the app is called from outside it: the phone's app switcher, a
+     browser tab, the PWA's own title bar. It said the tracker's name and
+     stopped there, so three of the four screens shared one label. */
+  document.title = !inside ? 'Media Tracker'
+    : S.view === 'stats' ? `Stats · ${S.kind} · Media Tracker`
+    : S.view === 'solo'  ? `Group Sort · ${S.kind} · Media Tracker`
+    : S.picking          ? `Group Edit · ${S.kind} · Media Tracker`
+    : `${S.shelf === 'All' ? S.kind : S.shelf} · ${S.kind} · Media Tracker`;
   if (!inside) return renderPortal();
 
   const pool = poolOf();
