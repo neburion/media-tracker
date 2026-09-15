@@ -247,7 +247,9 @@
 }
 
 *{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
+/* The shelf is paged with a horizontal drag, and on a browser that treats one
+   as "go back" the two fight. Nothing here scrolls sideways anyway. */
+html{-webkit-text-size-adjust:100%;overscroll-behavior-x:none}
 /* While the bottom sheet is up, the shelf behind it must not scroll —
    otherwise a drag that misses the sheet pans 300 covers out from under it. */
 body.locked{overflow:hidden}
@@ -629,6 +631,7 @@ body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 
 .book{position:relative;display:flex;flex-direction:column;gap:7px;
   background:none;border:0;padding:0;text-align:left;color:inherit;
+  -webkit-touch-callout:none;
   --dot:var(--ink-3)}
 .plate{
   position:relative;aspect-ratio:2/3;background:var(--fill-4);overflow:hidden;
@@ -3100,6 +3103,10 @@ document.addEventListener('click', async ev => {
   const door = hit('[data-door]');
   if (door) return goTo(door.dataset.door);
 
+  // A press and hold has already said what it meant; the click it leaves
+  // behind lands on the rebuilt grid and would toggle the card back off.
+  if (swallowClick){ swallowClick = false; ev.stopPropagation(); return; }
+
   const bumpBtn = hit('[data-bump]');
   if (bumpBtn){ ev.stopPropagation(); return bump(bumpBtn.dataset.bump); }
 
@@ -3262,47 +3269,142 @@ function setRating(n){
     b.setAttribute('aria-pressed', n !== null && Number(b.dataset.rate) <= n);
 }
 
-/* ── swiping between shelves ─────────────────────────────────────────────
-   The shelf picker is a row of eight chips that has to be scrolled sideways to
-   reach the far end of, which means changing shelf on a phone is: scroll the
-   strip, aim at a 34px chip, tap. The shelves are a flat ordered list and the
-   grid under them fills the screen, so the gesture is already obvious — put a
-   thumb on the covers and push them aside.
+/* ── the shelf under a thumb ──────────────────────────────────────────────
+   Two gestures live on the grid, and the whole job is telling them and a
+   scroll apart before any of the three has committed to anything.
 
-   The rules for telling a swipe from a scroll are the fiddly part. It has to
-   be mostly sideways (twice as much x as y) and it has to be a real distance
-   (56px), because a vertical flick with a few pixels of drift is the commonest
-   thing anybody does on this screen and it must never change shelf. It is
-   ignored on any screen that is not the grid, while the sheet is open, and
-   inside the select-mode bar, where a drag means something else. */
-let swipeFrom = null;
+   DRAG SIDEWAYS pages between shelves. It used to be a swipe measured only
+   when the finger came off — which meant the shelf simply became a different
+   shelf, and nothing about the change said it had been a movement rather than
+   a redraw. The grid follows the finger now, from the first ten pixels, and
+   goes where it is pushed; let go short of a fifth of the screen and it comes
+   back. The shelves are a flat ordered list either side of you, so that is the
+   right model: you are moving along a row, not selecting from a menu.
+
+   PRESS AND HOLD starts a selection. The circle that begins one is drawn on
+   hover, and a phone has no hover — so the only way into select mode there was
+   the Group Edit button in the dock, which is a trip to the far end of the
+   screen to say something about the cover under your thumb. Holding a thing to
+   start choosing things is the gesture every phone already teaches.
+
+   Deciding between them: a hold is cancelled by 12px of movement, and a page
+   needs 10px sideways and half again as much sideways as vertical before it
+   takes the gesture and stops the page scrolling. A vertical flick with a few
+   pixels of drift is the commonest thing anybody does on this screen, and it
+   must end up neither paging nor selecting. */
+const PAN_SLOP  = 10;     /* px before a direction is settled on */
+const PAN_TAKE  = 0.2;    /* fraction of the screen that commits the change */
+const HOLD_MS   = 420;    /* how long is a hold */
+const HOLD_SLIP = 12;     /* px of drift that says it was not one */
+
+let pan = null;
+let hold = null;
+/* The click that a long press produces lands on whatever is under the finger
+   after the grid has been rebuilt in select mode — which is the card you just
+   picked, and toggling it would un-pick it. */
+let swallowClick = false;
+
+const shelves = () => [...S.data.meta.status, 'All'];
+function shelfAt(by){
+  const all = shelves(), at = all.indexOf(S.shelf), n = at + by;
+  return at === -1 || n < 0 || n >= all.length ? null : all[n];
+}
+function dropHold(){ if (hold){ clearTimeout(hold.timer); hold = null; } }
 
 addEventListener('touchstart', ev => {
   if (S.view !== 'shelf' || S.open || ev.touches.length !== 1) return;
-  if (ev.target.closest('.tabs, .drawer, .bulk, .sheet, input, select, textarea')) return;
+  if (ev.target.closest('.tabs, .drawer, .bulk, .sheet, dialog, .plus, .tick,'
+                      + ' input, select, textarea')) return;
   const t = ev.touches[0];
-  swipeFrom = { x: t.clientX, y: t.clientY };
+  pan = { x: t.clientX, y: t.clientY, axis: null, dx: 0 };
+
+  const card = !S.picking && ev.target.closest('[data-open]');
+  if (card) hold = { timer: setTimeout(() => {
+    hold = null; pan = null;          // the gesture is spent on this
+    navigator.vibrate?.(12);          // Android has it; iOS ignores it
+    setPicking(true);
+    togglePick(card.dataset.open);
+    swallowClick = true;
+    setTimeout(() => { swallowClick = false; }, 800);
+  }, HOLD_MS) };
 }, { passive: true });
 
-addEventListener('touchend', ev => {
-  const from = swipeFrom;
-  swipeFrom = null;
-  if (!from || S.view !== 'shelf' || S.open) return;
-  const t = ev.changedTouches[0];
-  const dx = t.clientX - from.x, dy = t.clientY - from.y;
-  if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 2) return;
-  stepShelf(dx < 0 ? 1 : -1);
+addEventListener('touchmove', ev => {
+  if (!pan) return;
+  const t = ev.touches[0];
+  const dx = t.clientX - pan.x, dy = t.clientY - pan.y;
+  if (hold && (Math.abs(dx) > HOLD_SLIP || Math.abs(dy) > HOLD_SLIP)) dropHold();
+
+  if (pan.axis === null){
+    if (Math.abs(dx) > PAN_SLOP && Math.abs(dx) > Math.abs(dy) * 1.5) pan.axis = 'x';
+    else if (Math.abs(dy) > PAN_SLOP){ pan = null; return; }   // a scroll
+    else return;                                              // still undecided
+  }
+  // Ours now: stop the page scrolling under it and follow the finger. The
+  // squeeze is the end of the row saying so — there is nothing that way, and
+  // a hard stop feels like a bug where a stiff one feels like an edge.
+  ev.preventDefault();
+  dropHold();
+  pan.dx = dx;
+  $('#main').style.transform =
+    `translateX(${dx * (shelfAt(dx < 0 ? 1 : -1) ? 1 : .3)}px)`;
+}, { passive: false });
+
+addEventListener('touchend', () => {
+  dropHold();
+  const p = pan; pan = null;
+  if (!p || p.axis !== 'x') return;
+  const dir = p.dx < 0 ? 1 : -1;
+  const next = shelfAt(dir);
+  if (next && Math.abs(p.dx) > Math.min(innerWidth * PAN_TAKE, 130))
+    return pageTo(next, dir);
+  settle($('#main'), 0, '.2s cubic-bezier(.2,.8,.3,1)');
 }, { passive: true });
 
-/* Left goes forward, the way a page does. The ends do not wrap: arriving back
-   at Current after Dropped without asking for it is disorienting, and the end
-   of the list is a thing a thumb can feel. */
-function stepShelf(by){
-  const all = [...S.data.meta.status, 'All'];
-  const at = all.indexOf(S.shelf);
-  const next = at + by;
-  if (at === -1 || next < 0 || next >= all.length) return;
-  toShelf(all[next], by);
+addEventListener('touchcancel', () => {
+  dropHold();
+  if (pan && pan.axis === 'x') settle($('#main'), 0, '.2s ease-out');
+  pan = null;
+}, { passive: true });
+
+/* A long press on a cover would otherwise raise the platform's own menu —
+   "save image" and friends — over a gesture that now means something here. */
+addEventListener('contextmenu', ev => {
+  if (matchMedia('(hover:none)').matches && ev.target.closest('.book'))
+    ev.preventDefault();
+});
+
+/* Put a transform back where it was told to be, and take the inline styles off
+   again once it is there, so nothing is left pinned by a stale transform. */
+function settle(el, to, timing){
+  el.style.transition = `transform ${timing}`;
+  el.style.transform = `translateX(${to}px)`;
+  setTimeout(() => { el.style.transition = ''; el.style.transform = ''; },
+             260);
+}
+
+/* The change of shelf, as a movement. The outgoing grid finishes the journey
+   the finger started, the new one is built while it is off the screen, and it
+   arrives from the other side. Two halves rather than a cross-fade because the
+   ground behind is black: there is nothing to see between them, and rendering
+   nine hundred cards twice to have something there would cost more than it is
+   worth. */
+function pageTo(name, dir){
+  const main = $('#main'), w = innerWidth;
+  let went = false;
+  const arrive = () => {
+    if (went) return;
+    went = true;
+    main.style.transition = '';
+    toShelf(name, null);                       // renders, and scrolls to the top
+    main.style.transform = `translateX(${dir > 0 ? w : -w}px)`;
+    void main.offsetWidth;                     // take the jump before animating
+    settle(main, 0, '.22s cubic-bezier(.2,.8,.3,1)');
+  };
+  main.style.transition = 'transform .13s ease-in';
+  main.style.transform = `translateX(${dir > 0 ? -w : w}px)`;
+  main.addEventListener('transitionend', arrive, { once: true });
+  setTimeout(arrive, 190);          // transitionend is not promised to fire
 }
 
 /* Changing shelf, however you asked for it.
@@ -3326,10 +3428,15 @@ function toShelf(name, dir){
   if (S.picked.size) S.picked.clear();
   render();
   scrollTo({ top: 0 });
-  const main = $('#main');
-  main.classList.remove('came-l', 'came-r', 'came');
-  void main.offsetWidth;                       // restart the animation
-  main.classList.add(dir > 0 ? 'came-l' : dir < 0 ? 'came-r' : 'came');
+  // `null` means the caller is animating this itself — the finger-paged
+  // version slides the whole of #main, and a second animation on top of that
+  // is two things moving at once.
+  if (dir !== null){
+    const main = $('#main');
+    main.classList.remove('came-l', 'came-r', 'came');
+    void main.offsetWidth;                     // restart the animation
+    main.classList.add(dir > 0 ? 'came-l' : dir < 0 ? 'came-r' : 'came');
+  }
   // Keep the chip you landed on in view, since the strip is scrollable and the
   // one that is lit may be off the end of it.
   const chip = $(`.tab[data-s="${CSS.escape(S.shelf)}"]`);

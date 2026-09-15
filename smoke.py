@@ -151,6 +151,48 @@ async function smoke(){
     }
   }
 
+  // The two gestures on the grid. They have no visible control to press, so
+  // nothing else in here would notice if they stopped working.
+  if (phone) {
+    const T = (el, x, y) => new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
+    const fire = (el, type, x, y) => el.dispatchEvent(new TouchEvent(type,
+      { bubbles: true, cancelable: true,
+        touches: type === 'touchend' ? [] : [T(el, x, y)], changedTouches: [T(el, x, y)] }));
+    const drag = async (el, x0, y0, x1, y1) => {
+      fire(el, 'touchstart', x0, y0);
+      for (let i = 1; i <= 6; i++) {
+        fire(el, 'touchmove', x0 + (x1 - x0) * i / 6, y0 + (y1 - y0) * i / 6);
+        await wait(16);
+      }
+      fire(el, 'touchend', x1, y1);
+    };
+    const all = [...S.data.meta.status, 'All'];
+    S.shelf = all[2]; render(); await wait(400);
+    const main = document.querySelector('#main');
+
+    await drag(main, 330, 400, 60, 406); await wait(700);
+    say('a sideways drag pages the shelf', S.shelf === all[3] || S.shelf);
+
+    const held = S.shelf;
+    await drag(main, 200, 600, 214, 190); await wait(400);
+    say('a vertical drag does not', S.shelf === held || S.shelf);
+    say('and leaves no transform pinned on the grid',
+        !main.style.transform || main.style.transform);
+
+    // Onto a shelf that certainly has something on it: the one we paged to may
+    // be empty, and there is no cover to hold on an empty shelf.
+    S.shelf = 'All'; setPicking(false); render(); await wait(600);
+    const card = document.querySelector('[data-open]');
+    if (!card) return say('nothing to hold on the All shelf', 'no cards'), out;
+    fire(card, 'touchstart', 120, 300);
+    await wait(560);
+    say('press and hold starts a selection', S.picking === true || 'not picking');
+    say('holding picks the cover you held',
+        S.picked.has(Number(card.dataset.open)) || [...S.picked].join());
+    fire(card, 'touchend', 120, 300);
+    setPicking(false); render(); await wait(300);
+  }
+
   const de = document.documentElement;
   say('no sideways scroll', de.scrollWidth <= de.clientWidth + 1
       || de.scrollWidth + ' > ' + de.clientWidth);
