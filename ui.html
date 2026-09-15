@@ -729,6 +729,17 @@ body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
 @keyframes sheen{to{transform:translateX(100%)}}
 @media (prefers-reduced-motion:reduce){.skel::after{animation:none}}
 
+/* The shelf arriving. Short and small — 14px of travel, not a page turn —
+   because this happens every time a chip is tapped and an animation you see
+   forty times an hour has to be something you stop noticing. Reduce Motion
+   takes the duration to nothing along with everything else. */
+@keyframes came-l{from{opacity:0;transform:translateX(14px)}}
+@keyframes came-r{from{opacity:0;transform:translateX(-14px)}}
+@keyframes came{from{opacity:0}}
+.came-l{animation:came-l .16s ease-out}
+.came-r{animation:came-r .16s ease-out}
+.came{animation:came .16s ease-out}
+
 /* Reduce Motion, honoured once for the whole app. Everything here that moves
    is decoration on top of a state change that happens anyway — the sheet
    still opens, the toast still appears, the press still presses; they simply
@@ -3119,12 +3130,7 @@ document.addEventListener('click', async ev => {
   // "stats for this shelf" a thing you can ask for at all. From the card
   // screen it means a different pile to go through, so the queue is rebuilt.
   const tab = hit('.tab');
-  if (tab){
-    S.shelf = tab.dataset.s;
-    if (S.view === 'solo') return enterSolo();
-    if (S.picked.size) S.picked.clear();
-    return render();
-  }
+  if (tab) return toShelf(tab.dataset.s, 0);
 
   const tick = hit('[data-tick]');
   if (tick) return togglePick(tick.dataset.tick, ev);
@@ -3296,9 +3302,34 @@ function stepShelf(by){
   const at = all.indexOf(S.shelf);
   const next = at + by;
   if (at === -1 || next < 0 || next >= all.length) return;
-  S.shelf = all[next];
+  toShelf(all[next], by);
+}
+
+/* Changing shelf, however you asked for it.
+   Two things had to be said once rather than in each of the two callers.
+
+   The scroll goes back to the top. Tapping a chip while forty rows down used
+   to leave you forty rows down a different shelf, looking at the middle of
+   something you had never seen the start of — the most disorienting thing the
+   app did, and invisible in a screenshot because it depends on where you were
+   standing.
+
+   And the grid comes in from the side it came from. A swipe that changes the
+   contents with no movement at all reads as a redraw rather than as a place
+   you moved to; 160ms of travel is the difference. `dir` is -1, 0 or 1 — zero
+   for a tap, where there is no direction to honour and a fade is the whole
+   animation. */
+function toShelf(name, dir){
+  if (S.shelf === name && !dir) return;
+  S.shelf = name;
+  if (S.view === 'solo') return enterSolo();
   if (S.picked.size) S.picked.clear();
   render();
+  scrollTo({ top: 0 });
+  const main = $('#main');
+  main.classList.remove('came-l', 'came-r', 'came');
+  void main.offsetWidth;                       // restart the animation
+  main.classList.add(dir > 0 ? 'came-l' : dir < 0 ? 'came-r' : 'came');
   // Keep the chip you landed on in view, since the strip is scrollable and the
   // one that is lit may be off the end of it.
   const chip = $(`.tab[data-s="${CSS.escape(S.shelf)}"]`);
