@@ -452,42 +452,77 @@ h1{font:var(--type-headline);margin:0 auto 0 6px;
    and the chip strip made choosing between them a thing you did on the way
    past, with an "All" in front that mixed nine hundred manhwa into five films.
    So the app opens on neither, and you walk into one. */
-/* Top-aligned, not floating in the middle. A large title at the top left is
-   where every system app starts, and centring two cards in the void was what
-   made the screen read as a placeholder somebody had not finished. */
-.hall{display:flex;flex-direction:column;gap:22px;padding:28px 0 40px;
-  width:min(100%,640px);margin:0 auto}
+/* The way in, at the size of the screen it is on.
+   It was two cards holding a row of five thumbnails, sitting in the top third
+   of a phone with the other two thirds empty under them — five covers 60px
+   wide on a 390px screen, which is the whole library reported at the size of a
+   contact-sheet margin. Everything was correct and everything was small.
+
+   So the doors fill the screen: the hall is as tall as the viewport, the two
+   of them share what is left after the title, and the artwork inside each one
+   takes whatever height that works out to. The covers are laid out as a grid
+   that fits as many as it can at a real size and clips the rest, which is why
+   this works on a phone and on a 1600px window without a second set of rules —
+   a tall narrow door gets three across and several rows, a short wide one gets
+   six across and one. They stay 2:3 either way; nothing is squeezed into a
+   strip to make it fit. */
+.hall{display:flex;flex-direction:column;gap:20px;
+  padding:24px 0 max(24px,env(safe-area-inset-bottom));
+  width:min(100%,900px);margin:0 auto}
 .mast b{font-family:Lit,Georgia,serif;font-size:34px;font-weight:600;
   letter-spacing:-.025em;line-height:1}
 /* An explicit width, because auto-fit inside a shrink-to-fit flex item
    resolves to one column and stacks the two doors into a list. */
-.portal{display:grid;gap:18px;width:100%;
-  grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.portal{display:grid;gap:16px;width:100%;
+  grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
 /* `min-width:0` is load-bearing: a grid item's automatic minimum size is its
-   content, and the content here is a row of cover images whose intrinsic width
-   is whatever the publisher uploaded. Without it the track ignores the 260px
-   minimum, grows to fit one full-size cover, and the door runs off the screen. */
+   content, and the content here is cover images whose intrinsic width is
+   whatever the publisher uploaded. Without it the track ignores the 300px
+   minimum, grows to fit one full-size cover, and the door runs off the screen.
+   `min-height:0` is the same argument in the other axis, and it is what lets
+   the artwork be clipped rather than pushing the door taller than its share. */
 .door{
-  display:flex;flex-direction:column;gap:14px;text-align:left;min-width:0;
+  display:flex;flex-direction:column;gap:12px;text-align:left;
+  min-width:0;min-height:0;
   padding:14px;border:1px solid transparent;background:var(--card);
   border-radius:var(--r-xl);color:inherit;transition:transform .14s,background .14s;
 }
 .door:hover{background:var(--g3);transform:translateY(-2px)}
 .door:active{transform:scale(.99)}
-/* The covers. Five across whatever width the door came out at, so they stay a
-   row rather than becoming a scroll: the point is the glance, not the browse.
-   Each one is cropped to the same 2:3 as every other cover in the app. */
-.door-art{display:flex;gap:7px;min-width:0}
-.door-art img{flex:1;min-width:0;aspect-ratio:2/3;object-fit:cover;display:block;
+/* The fade at the foot is what makes a part-row of covers deliberate. Without
+   it the grid looks sliced; with it, it looks like there is more behind the
+   door — which there is, and is the point of the screen. */
+/* The artwork is measured against the screen, not against its own contents.
+   Chaining flex through hall → portal → door → art to make the doors share the
+   viewport looked right in one window and overflowed in the next: a grid track
+   is `auto` by default, so eighteen covers three across wanted six rows and
+   took them, pushing the second door off the bottom. A height in dvh is the
+   thing actually being asked for — give each door about a third of the screen
+   on a phone, where they stack, and half of it on a wider one, where they sit
+   side by side and can afford to be tall. */
+.door-art{height:32dvh;min-height:150px;overflow:hidden;display:grid;gap:8px;
+  align-content:start;
+  grid-template-columns:repeat(auto-fill,minmax(96px,1fr));
+  -webkit-mask-image:linear-gradient(#000 calc(100% - 34px),transparent);
+  mask-image:linear-gradient(#000 calc(100% - 34px),transparent)}
+.door-art img{width:100%;aspect-ratio:2/3;object-fit:cover;display:block;
   border-radius:var(--r-md);background:var(--fill-4)}
-.door-line{display:flex;align-items:baseline;gap:10px;padding:0 4px 4px}
-.door b{font-family:Lit,Georgia,serif;font-size:24px;font-weight:600;
+.door-line{display:flex;align-items:baseline;gap:10px;padding:0 4px 2px}
+.door b{font-family:Lit,Georgia,serif;font-size:26px;font-weight:600;
   letter-spacing:-.02em;line-height:1.1}
-.door span{font:var(--type-footnote);color:var(--ink-3);margin-left:auto}
-/* A tracker with nothing in it has no covers to show, so the door is just its
-   line — and it gets the height back that the artwork would have taken, or it
-   reads as a card with a hole in it. */
-.door:not(:has(.door-art)) .door-line{padding:10px 4px}
+.door span{font:var(--type-subhead);color:var(--ink-3);margin-left:auto}
+/* A tracker with nothing in it has no covers, and an empty door that still
+   takes half the screen is a hole. It gets a glyph in the middle of the space
+   instead, which is the same answer the empty shelves give. */
+.door-none{height:32dvh;min-height:150px;display:grid;place-items:center}
+.door-none svg{width:40px;height:40px;fill:var(--ink-3);opacity:.3}
+@media (max-width:640px){
+  .door-art{grid-template-columns:repeat(auto-fill,minmax(88px,1fr))}
+  .door b{font-size:24px}
+}
+@media (min-width:641px){
+  .door-art,.door-none{height:min(56dvh,560px)}
+}
 @media (max-width:640px){
   .hall{min-height:calc(100dvh - 120px);gap:26px;
     padding:8px max(14px,env(safe-area-inset-left)) 30px;align-items:stretch}
@@ -2045,13 +2080,16 @@ function renderPortal(){
     <div class="mast"><b>Media Tracker</b></div>
     <div class="portal">${S.data.meta.kind.map(k => {
     const mine = S.data.series.filter(x => x.kind === k);
+    // Enough to fill whatever shape the door turns out to be; the grid keeps
+    // what fits and the mask fades the rest out at the bottom edge.
     const art = mine.filter(x => x.coverId)
       .sort((a, b) => String(b.updated).localeCompare(String(a.updated)))
-      .slice(0, 5);
+      .slice(0, 18);
     return `<button class="door" data-door="${esc(k)}">
       ${art.length ? `<div class="door-art">${art.map(x =>
         `<img src="/cover/${x.coverId}" alt="" loading="lazy" decoding="async">`
-      ).join('')}</div>` : ''}
+      ).join('')}</div>`
+      : `<div class="door-none"><svg viewBox="0 0 24 24"><path d="${GLYPH.shelf}"/></svg></div>`}
       <div class="door-line">
         <b>${esc(k)}</b>
         <span>${mine.length} ${mine.length === 1 ? 'title' : 'titles'}</span>
