@@ -107,8 +107,15 @@
      the ground and struggles to clear 4.5:1, which is why every guide says to
      desaturate 20-30% for dark mode. Radix's dark scales are already built to
      that, which is the reason for using them rather than mixing by hand. */
-  --a3:rgba(94,92,230,.22);  --a5:rgba(94,92,230,.38);  --a7:rgba(94,92,230,.55);
-  --a9:#5E5CE6;  --a10:#7573EB; --a11:#A5A3FF;
+  /* The accent, and the only hue in this file that means "you can press this".
+     It was indigo, which on a black ground with warm cover art everywhere put
+     a violet cast over the whole app — and violet is a colour with an opinion,
+     which is the wrong thing for the one token that appears on every screen.
+     systemBlue is the tint every Apple app ships with, it is cool enough to
+     sit behind artwork instead of arguing with it, and it has no second
+     meaning here now that nothing else in the interface is blue. */
+  --a3:rgba(10,132,255,.20);  --a5:rgba(10,132,255,.36);  --a7:rgba(10,132,255,.55);
+  --a9:#0A84FF;  --a10:#3D9BFF; --a11:#6FB8FF;
 
   /* Chosen, without spending colour on it.
      The accent was doing two jobs — "this is the button that acts" and "this
@@ -134,11 +141,27 @@
   /* Named for the shelves, which are no longer named after reading: the token
      names have to track them because the stats bars resolve --<status> from
      the status name itself. */
-  --current:#30D158;   /* systemGreen  — you are in it */
-  --later:#0A84FF;     /* systemBlue   — queued */
-  --hold:#FF9F0A;      /* systemOrange — paused */
-  --finished:#AEAEB2;  /* systemGray3  — done */
-  --dropped:#8E8E93;   /* systemGray   — abandoned; dimmest of the five, but 3:1 */
+  /* The shelf markers, which were five unrelated hues — green, blue, orange
+     and two greys — for five values of one variable. Five hues cannot help
+     being read as five separate facts, so a row of tabs came out looking like
+     a box of highlighters, and the word sitting next to every single one of
+     those dots was already telling you which shelf it was. Apple's line on
+     this is that the power of colour to call attention is heightened when it
+     is used sparingly, and that nothing should lean on colour alone; both
+     point the same way here.
+
+     So it is one ramp instead of five choices, and the thing it varies is
+     saturation, not hue: vivid green for the shelf a book is alive on, then
+     progressively greyer through queued and paused, and finally the two
+     greys for the shelves where nothing is true of it any more. The order is
+     the meaning — how alive is this — and because every step is the same
+     green walking toward grey, the five of them read as one scale rather than
+     as five decisions somebody made on five different days. */
+  --current:#30D158;   /* vivid       — you are in it */
+  --later:#6FBF8A;     /* muted       — queued */
+  --hold:#8FAE9A;      /* nearly grey — paused */
+  --finished:#AEAEB2;  /* grey        — done */
+  --dropped:#8E8E93;   /* dimmer grey — abandoned */
 
   /* Semantic, on one control: the one that deletes a series. */
   --danger:#FF453A;    /* systemRed */
@@ -207,7 +230,7 @@
      Vercel's Geist caps functional UI at 12px; Linear uses exactly 6 and 12;
      GitHub's Primer sits lower still. The previous pass had 999px pills on
      every button and a 28px sheet, which is a phone-app costume rather than a
-     scale. Full-round survives only where the shape *is* the content: the 8px
+     scale. Full-round survives only where the shape *is* the content: the 7px
      status dots.
 
      Every step went up by two on the Apple pass. The argument above is about
@@ -373,10 +396,10 @@ h1{font:var(--type-headline);margin:0 auto 0 6px;
    you were looking at. A tinted surface is the fix, and it is also the
    documented pattern: step 3 ground, step 7 border, step 11 label. Both chip
    states are dark, so all five markers stay visible in both. */
-.tab::before{content:"";width:8px;height:8px;border-radius:var(--r-dot);
+.tab::before{content:"";width:7px;height:7px;border-radius:var(--r-dot);
   background:var(--dot,var(--ink-3));flex:none}
 .tab[aria-selected=true]{background:var(--sel);border-color:transparent;
-  color:var(--a11);font-weight:600}
+  color:var(--ink);font-weight:600}
 .tab[aria-selected=true] em{opacity:.8}
 .tab[data-s=Current]{--dot:var(--current)} .tab[data-s=Later]{--dot:var(--later)}
 .tab[data-s=Hold]{--dot:var(--hold)}       .tab[data-s=Finished]{--dot:var(--finished)}
@@ -1094,7 +1117,7 @@ body.selecting .fab{display:none}
 .pick[aria-pressed=true]{background:var(--sel);border-color:transparent;
   color:var(--ink);font-weight:600}
 .pick[data-v]{--tone:none}
-.pick[data-status]::before{content:"";width:8px;height:8px;margin-right:8px;
+.pick[data-status]::before{content:"";width:7px;height:7px;margin-right:8px;
   border-radius:var(--r-dot);background:var(--tone,var(--ink-3));
   display:inline-block;vertical-align:middle}
 .pick[data-v=Current]{--tone:var(--current)} .pick[data-v=Later]{--tone:var(--later)}
