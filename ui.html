@@ -248,8 +248,19 @@
 
 *{box-sizing:border-box}
 /* The shelf is paged with a horizontal drag, and on a browser that treats one
-   as "go back" the two fight. Nothing here scrolls sideways anyway. */
-html{-webkit-text-size-adjust:100%;overscroll-behavior-x:none}
+   as "go back" the two fight. Nothing here scrolls sideways — and `overflow-x`
+   is what makes that true rather than merely intended. The shelves either side
+   are parked one screen-width out in each direction, and a transform counts
+   towards the area the page can be scrolled over: for as long as a drag lasts
+   the document is a screen and a half wide, and the pane that is supposed to
+   arrive with the gesture is also somewhere the page can simply be panned to.
+   Do that — and a thumb moving sideways on a phone does it by accident — and
+   the shelf travels twice, once because it was dragged and once because the
+   page was scrolled out from under it.
+   `clip` rather than `hidden`: hidden is still a scroller, with the overflow
+   reachable by script and by momentum and only the bars taken away, where clip
+   means there is nothing over there to reach. */
+html{-webkit-text-size-adjust:100%;overscroll-behavior-x:none;overflow-x:clip}
 /* While the bottom sheet is up, the shelf behind it must not scroll —
    otherwise a drag that misses the sheet pans 300 covers out from under it. */
 body.locked{overflow:hidden}
@@ -3382,6 +3393,12 @@ const HOLD_SLIP = 12;     /* px of drift that says it was not one */
 
 let pan = null;
 let hold = null;
+/* A gesture that starts while the last one is still landing is not a second
+   page, it is the same page being pulled at from both ends: the drag writes a
+   transform the animation is overriding, and the swap lands in the middle of
+   it. The landing is a fifth of a second — about as long as it takes to lift a
+   thumb and put it down again — so the honest thing is to let it finish. */
+let paging = false;
 /* The click that a long press produces lands on whatever is under the finger
    after the grid has been rebuilt in select mode — which is the card you just
    picked, and toggling it would un-pick it. */
@@ -3395,7 +3412,7 @@ function shelfAt(by){
 function dropHold(){ if (hold){ clearTimeout(hold.timer); hold = null; } }
 
 addEventListener('touchstart', ev => {
-  if (S.view !== 'shelf' || S.open || ev.touches.length !== 1) return;
+  if (S.view !== 'shelf' || S.open || paging || ev.touches.length !== 1) return;
   if (ev.target.closest('.tabs, .drawer, .bulk, .sheet, dialog, .plus, .tick,'
                       + ' input, select, textarea')) return;
   const t = ev.touches[0];
@@ -3445,16 +3462,12 @@ addEventListener('touchend', () => {
   const next = shelfAt(dir);
   if (next && Math.abs(p.dx) > Math.min(innerWidth * PAN_TAKE, 130))
     return pageTo(next, dir);
-  settle($('#main'), 0, '.2s cubic-bezier(.2,.8,.3,1)');
-  setTimeout(dropPeeks, 260);
+  settle($('#main'), 'cubic-bezier(.2,.8,.3,1)').then(dropPeeks);
 }, { passive: true });
 
 addEventListener('touchcancel', () => {
   dropHold();
-  if (pan && pan.axis === 'x'){
-    settle($('#main'), 0, '.2s ease-out');
-    setTimeout(dropPeeks, 260);
-  }
+  if (pan && pan.axis === 'x') settle($('#main'), 'ease-out').then(dropPeeks);
   pan = null;
 }, { passive: true });
 
@@ -3515,13 +3528,19 @@ addEventListener('contextmenu', ev => {
     ev.preventDefault();
 });
 
-/* Put a transform back where it was told to be, and take the inline styles off
-   again once it is there, so nothing is left pinned by a stale transform. */
-function settle(el, to, timing){
-  el.style.transition = `transform ${timing}`;
-  el.style.transform = `translateX(${to}px)`;
-  setTimeout(() => { el.style.transition = ''; el.style.transform = ''; },
-             260);
+/* Let go short of the fifth: the shelf goes back where it was.
+
+   Animated rather than transitioned, and for the reason the page below is
+   animated rather than transitioned — a transition has to be cleaned up after
+   on a timer, and a timer that fires while the movement is still running is a
+   snap. `animate` ends on the element's own resting style, so there is nothing
+   to clean up and nothing to fire early. */
+function settle(el, easing){
+  const from = el.style.transform;
+  el.style.transform = '';
+  if (!from) return Promise.resolve();
+  return el.animate([{ transform: from }, { transform: 'none' }],
+                    { duration: 200, easing }).finished.catch(() => {});
 }
 
 /* The change of shelf, as one movement.
@@ -3534,25 +3553,71 @@ function settle(el, to, timing){
 
    So: finish the journey the finger started, once. What lands in the middle is
    the preview. Swapping it for the real thing is not a movement at all — it is
-   the same shelf at the same place — so it happens with the transition off and
-   nothing to see. */
+   the same shelf at the same place — so it happens with nothing painted in
+   between.
+
+   The journey is an animation and not a transition, because the swap has to
+   happen at the end of it and a transition cannot say when that is. It
+   promises `transitionend` — which arrives late on a loaded phone, and is not
+   promised at all if anything disturbs the property — so this was written with
+   a 300ms timer behind it as well, racing a 220ms movement whose *start* is
+   whenever the main thread next gets round to a style recalc. Two hundred
+   milliseconds late is an ordinary figure for that under load, and when the
+   timer wins, the page is still crossing the screen when it is taken away and
+   replaced: the shelf arrives partway, and then the real one is there. Which
+   is the doubling, seen from the other end.
+
+   `animate` has none of that. It reports its own end, it keeps the movement's
+   last frame while it does (`fill: 'forwards'`), and it runs on the compositor
+   where a busy main thread cannot stutter it. Late now means the swap is late
+   — invisible, since the pane it swaps is already standing in the right place
+   — rather than the movement being cut short. */
 function pageTo(name, dir){
   const main = $('#main'), w = innerWidth;
-  let went = false;
+  /* The finger's offset is the animation's first frame, and it also stays on
+     the element as an inline style until the swap. An animation that has been
+     asked to play does not take effect until the compositor hands it a start
+     time — a frame away, sometimes more on a loaded phone — and for that one
+     frame whatever the element's own style says is what is on the screen. Take
+     the drag off first and that frame shows the shelf back at nought, before
+     the movement that is about to carry it off: the page jumps back, and then
+     leaves. Which is the doubling, made by the cure for it. */
+  const from = main.style.transform || 'none';
+  paging = true;
+  const going = main.animate(
+    [{ transform: from },
+     { transform: `translate3d(${dir > 0 ? -w : w}px,0,0)` }],
+    { duration: 220, easing: 'cubic-bezier(.22,.61,.36,1)', fill: 'forwards' });
   const land = () => {
-    if (went) return;
-    went = true;
-    main.style.transition = 'none';
+    if (!paging) return;       // whichever of the two got here first
+    paging = false;
     // Rewrites #main, which takes the peek panes with it: the shelf that was a
     // preview a moment ago is the real one now, in the place it already was.
-    toShelf(name, null);                       // renders, and scrolls to the top
     main.style.transform = '';
-    requestAnimationFrame(() => { main.style.transition = ''; });
+    toShelf(name, null);       // renders, and scrolls to the top
+    // All in this same task, so there is never a frame with the movement taken
+    // off and the old shelf back at nought.
+    going.cancel();
   };
-  main.style.transition = 'transform .22s cubic-bezier(.22,.61,.36,1)';
-  main.style.transform = `translate3d(${dir > 0 ? -w : w}px,0,0)`;
-  main.addEventListener('transitionend', land, { once: true });
-  setTimeout(land, 300);            // transitionend is not promised to fire
+  going.finished.then(land, land);
+  /* And a way out of a frame famine. An animation that has been asked to play
+     applies its first frame and then waits for the compositor to hand it a
+     start time; on a page wedged hard enough that no frames are coming at all,
+     that wait has no end, and the shelf would sit half-paged until one did.
+
+     What this does NOT do is put a clock on the movement. That was the old
+     shape — a 300ms timer behind a 220ms transition — and on a loaded phone
+     the timer won, taking the page away while it was still crossing. So the
+     question asked here is not "has it finished yet" but "has it started at
+     all": an animation still waiting for its start time has painted nothing,
+     so landing on top of it cuts nothing short, and an animation that is
+     running is left alone to arrive however long it takes. */
+  const unwedge = () => {
+    if (!paging) return;
+    if (going.pending) return land();
+    setTimeout(unwedge, 220);
+  };
+  setTimeout(unwedge, 620);
 }
 
 /* Changing shelf, however you asked for it.

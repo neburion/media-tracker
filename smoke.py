@@ -170,23 +170,66 @@ async function smoke(){
     S.shelf = all[2]; render(); await wait(400);
     const main = document.querySelector('#main');
 
-    // Watch what gets written to the transform across a committed page. One
-    // journey out and then the style taken off again is right; going out one
-    // side and back in from the other is the shelf arriving twice, which is
-    // what it did while the neighbouring panes were being carried along by
-    // the same drag that was supposed to deliver them.
-    const writes = [];
-    const obs = new MutationObserver(() => {
-      const t = main.style.transform.trim();
-      if (writes[writes.length - 1] !== t) writes.push(t);
-    });
-    obs.observe(main, { attributes: true, attributeFilter: ['style'] });
-    await drag(main, 330, 400, 60, 406); await wait(900);
-    obs.disconnect();
+    /* Watch where the grid actually IS on every frame of a committed page,
+       rather than what was written to its style: the journey is an animation
+       now, and an animation leaves no style to read. Two things are being
+       asked. One journey — the shelf going out one side and coming back in
+       from the other is it arriving twice, which is what it did while the
+       neighbouring panes were already being carried into the middle by the
+       same drag. And a whole journey: the swap is the preview becoming the
+       real thing in the place it already occupies, so it must happen at the
+       end of the movement and not partway through it, or the page arrives
+       halfway and is then replaced where it stands. */
+    const at = () => { const t = getComputedStyle(main).transform;
+                       return t === 'none' ? 0 : Number(t.split(',')[4]); };
+    const seen = [];
+    let watching = true;
+    (function frame(){
+      seen.push({ x: at(), shelf: S.shelf, sx: Math.round(scrollX) });
+      if (watching) requestAnimationFrame(frame);
+    })();
+    /* Where the shelf stood at the instant it was swapped, asked of the swap
+       itself rather than of the frame before it. A headless renderer paints
+       only when something asks it to and a composited animation asks the
+       compositor, so the last frame this samples may be from well before the
+       end of the movement — which says nothing about where the movement got
+       to. `toShelf(name, null)` is the swap; nothing else calls it that way. */
+    let swapped = null;
+    const realToShelf = window.toShelf;
+    window.toShelf = function (name, dir) {
+      if (dir === null) swapped = at();
+      return realToShelf.apply(this, arguments);
+    };
+    await drag(main, 330, 400, 60, 406);
+    /* Run the movement to its end by hand. A composited animation is the
+       compositor's to advance and this renderer, which paints only when
+       something asks it for pixels, may never advance it at all — which is a
+       fact about headless chromium and not about the app. `finish()` is a
+       no-op where it did advance, so this asks the same question of both:
+       when the movement ends, where does the swap happen? */
+    await wait(30);
+    for (const a of main.getAnimations()) a.finish();
+    await wait(900);
+    watching = false;
+    window.toShelf = realToShelf;
     say('a sideways drag pages the shelf', S.shelf === all[3] || S.shelf);
-    const px = writes.map(t => { const m = /-?\d+(\.\d+)?/.exec(t); return t ? Number(m && m[0]) : 0; });
+
+    const went = seen.filter(f => f.shelf === all[2]).map(f => f.x);
     say('the shelf arrives once, not twice',
-        !px.some((v, i) => i > 0 && px[i - 1] < -10 && v > 10) || writes.join(' | '));
+        !went.some((v, i) => i > 0 && went[i - 1] < -10 && v > 10) || went.join(' '));
+    // The preview is swapped for the real shelf in the place it already
+    // occupies, so the swap belongs at the end of the journey: a whole screen
+    // over. Anything short of that is the page being taken away while it is
+    // still crossing, and the shelf arriving twice.
+    say('and it crosses the whole screen first',
+        (swapped !== null && Math.abs(swapped) >= innerWidth - 2)
+        || 'swapped at ' + swapped + ' of ' + -innerWidth);
+    // The panes either side are parked a screen-width out, and a transform
+    // counts towards what a page can be scrolled over. If that is reachable,
+    // the shelf can be dragged and the page panned at the same time, and the
+    // two movements are the doubling seen from the outside.
+    say('and nothing pans the page while it does',
+        !seen.some(f => f.sx !== 0) || 'scrollX ' + seen.map(f => f.sx).join(' '));
 
     const held = S.shelf;
     await drag(main, 200, 600, 214, 190); await wait(400);
@@ -211,6 +254,11 @@ async function smoke(){
   const de = document.documentElement;
   say('no sideways scroll', de.scrollWidth <= de.clientWidth + 1
       || de.scrollWidth + ' > ' + de.clientWidth);
+  // And none available during a drag either, when the panes either side make
+  // the document half again as wide. `clip` is the one that means there is
+  // nothing over there to reach; `hidden` would only take the bars away.
+  say('the page cannot be scrolled sideways at all',
+      getComputedStyle(de).overflowX === 'clip' || getComputedStyle(de).overflowX);
 
   document.querySelector('[data-close]').click();
   await wait(500);
