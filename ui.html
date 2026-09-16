@@ -783,7 +783,9 @@ body.selecting main{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
    than `100%` because the gap between them then comes out as the two paddings,
    which is the gutter a pair of pages should have between them. */
 #main{position:relative}
-.peek{position:absolute;left:0;right:0;height:100dvh;overflow:hidden;
+.peek{position:absolute;height:100dvh;overflow:hidden;
+  left:max(14px,env(safe-area-inset-left));
+  right:max(14px,env(safe-area-inset-right));
   pointer-events:none;contain:paint}
 .peek.l{transform:translateX(-100vw)}
 .peek.r{transform:translateX(100vw)}
@@ -1676,7 +1678,6 @@ dialog .sheet-foot .btn.primary{background:var(--a9);color:#fff}
 <div class="bulk" id="bulk">
   <b id="bulk-n">0 selected</b>
   <button class="chip" id="bulk-all">All</button>
-  <button class="chip" id="bulk-none">Clear</button>
   <span class="sp"></span>
   <select id="bulk-status"><option value="">Move to…</option></select>
   <button class="chip danger" id="bulk-del">Delete</button>
@@ -2375,6 +2376,13 @@ function togglePick(id, ev){
     for (const t of book.querySelectorAll('[data-tick]'))
       t.setAttribute('aria-pressed', String(on));
   }
+  /* Taking the last one back leaves the mode. The rule is about the movement
+     rather than the state — you leave when the count drops from something to
+     nothing, which is why Group Edit can open on an empty selection and stay
+     there: nothing was deselected, because nothing had been selected. Written
+     as "exit whenever the count is zero" it would have thrown you out of the
+     mode at the instant you entered it. */
+  if (!on && S.picked.size === 0) return setPicking(false);
   fillBulk();
 }
 
@@ -2394,7 +2402,7 @@ function fillBulk(){
   // to carry instead.
   $('#bulk-n').textContent = n ? `${n} selected`
     : forEdit ? 'Pick a group, or All' : 'Nothing selected';
-  for (const id of ['#bulk-walk','#bulk-none','#bulk-status','#bulk-del'])
+  for (const id of ['#bulk-walk','#bulk-status','#bulk-del'])
     $(id).disabled = !n;
   // Rebuilt rather than filled once: the shelves are a tracker's, and he can
   // be standing in either one.
@@ -3477,10 +3485,15 @@ function listFor(shelf){
 function buildPeeks(){
   const main = $('#main');
   if (main.querySelector('.peek')) return;
-  // Line the panes up with the top of the SCREEN, not the top of the shelf:
-  // the page may be scrolled halfway down a long one, and the shelf you are
-  // moving to starts at its beginning.
-  const top = Math.max(0, scrollY - (main.getBoundingClientRect().top + scrollY));
+  /* Line the panes up with where the new shelf will actually be once it has
+     landed — under the sticky header, at the top of its own grid — not with the
+     top of the screen. Aligned to the screen they looked right until you paged
+     while scrolled down a long shelf, and then the covers jumped up by the
+     height of the header at the moment the preview became real. Adding the
+     scroll offset cancels the scroll: the pane sits one screenful further down
+     the document for every screenful you are down, which leaves it in the same
+     place on the glass. */
+  const top = scrollY + parseFloat(getComputedStyle(main).paddingTop || 0);
   for (const [side, by] of [['l', -1], ['r', 1]]){
     const name = shelfAt(by);
     if (!name) continue;
@@ -3511,30 +3524,35 @@ function settle(el, to, timing){
              260);
 }
 
-/* The change of shelf, as a movement. The outgoing grid finishes the journey
-   the finger started, the new one is built while it is off the screen, and it
-   arrives from the other side. Two halves rather than a cross-fade because the
-   ground behind is black: there is nothing to see between them, and rendering
-   nine hundred cards twice to have something there would cost more than it is
-   worth. */
+/* The change of shelf, as one movement.
+   This ran two animations: slide the old shelf out, then slide the new one in.
+   That was right when there was nothing either side and the screen went black
+   in between — and wrong the moment the neighbouring shelves were drawn, which
+   is what made the swipe look doubled. The neighbour has already been carried
+   into the middle by the same drag; animating it in again means the shelf
+   arrives, and then arrives.
+
+   So: finish the journey the finger started, once. What lands in the middle is
+   the preview. Swapping it for the real thing is not a movement at all — it is
+   the same shelf at the same place — so it happens with the transition off and
+   nothing to see. */
 function pageTo(name, dir){
   const main = $('#main'), w = innerWidth;
   let went = false;
-  const arrive = () => {
+  const land = () => {
     if (went) return;
     went = true;
-    main.style.transition = '';
-    // This rewrites #main, which takes the peek panes with it — the shelf that
-    // was a preview a moment ago is now the real one, at the same place.
+    main.style.transition = 'none';
+    // Rewrites #main, which takes the peek panes with it: the shelf that was a
+    // preview a moment ago is the real one now, in the place it already was.
     toShelf(name, null);                       // renders, and scrolls to the top
-    main.style.transform = `translateX(${dir > 0 ? w : -w}px)`;
-    void main.offsetWidth;                     // take the jump before animating
-    settle(main, 0, '.22s cubic-bezier(.2,.8,.3,1)');
+    main.style.transform = '';
+    requestAnimationFrame(() => { main.style.transition = ''; });
   };
-  main.style.transition = 'transform .13s ease-in';
-  main.style.transform = `translateX(${dir > 0 ? -w : w}px)`;
-  main.addEventListener('transitionend', arrive, { once: true });
-  setTimeout(arrive, 190);          // transitionend is not promised to fire
+  main.style.transition = 'transform .22s cubic-bezier(.22,.61,.36,1)';
+  main.style.transform = `translate3d(${dir > 0 ? -w : w}px,0,0)`;
+  main.addEventListener('transitionend', land, { once: true });
+  setTimeout(land, 300);            // transitionend is not promised to fire
 }
 
 /* Changing shelf, however you asked for it.
@@ -3690,7 +3708,8 @@ $('#bulk-all').addEventListener('click', () => {
   for (const x of shown()) S.picked.add(x.id);
   render();
 });
-$('#bulk-none').addEventListener('click', () => { S.picked.clear(); render(); });
+/* Clear used to live here. Now that emptying the selection ends the mode, it
+   did exactly what Done does, from a second button two inches away. */
 $('#bulk-del').addEventListener('click', bulkDelete);
 $('#bulk-status').addEventListener('change', e => {
   const v = e.target.value;

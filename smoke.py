@@ -170,8 +170,23 @@ async function smoke(){
     S.shelf = all[2]; render(); await wait(400);
     const main = document.querySelector('#main');
 
-    await drag(main, 330, 400, 60, 406); await wait(700);
+    // Watch what gets written to the transform across a committed page. One
+    // journey out and then the style taken off again is right; going out one
+    // side and back in from the other is the shelf arriving twice, which is
+    // what it did while the neighbouring panes were being carried along by
+    // the same drag that was supposed to deliver them.
+    const writes = [];
+    const obs = new MutationObserver(() => {
+      const t = main.style.transform.trim();
+      if (writes[writes.length - 1] !== t) writes.push(t);
+    });
+    obs.observe(main, { attributes: true, attributeFilter: ['style'] });
+    await drag(main, 330, 400, 60, 406); await wait(900);
+    obs.disconnect();
     say('a sideways drag pages the shelf', S.shelf === all[3] || S.shelf);
+    const px = writes.map(t => { const m = /-?\d+(\.\d+)?/.exec(t); return t ? Number(m && m[0]) : 0; });
+    say('the shelf arrives once, not twice',
+        !px.some((v, i) => i > 0 && px[i - 1] < -10 && v > 10) || writes.join(' | '));
 
     const held = S.shelf;
     await drag(main, 200, 600, 214, 190); await wait(400);
