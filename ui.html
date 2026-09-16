@@ -3399,6 +3399,25 @@ let hold = null;
    it. The landing is a fifth of a second — about as long as it takes to lift a
    thumb and put it down again — so the honest thing is to let it finish. */
 let paging = false;
+/* How far the shelves either side are parked, in pixels, measured off the pane
+   once it is in the document rather than taken from `innerWidth`.
+
+   This is the doubling, and it took three goes to find because the code that
+   was wrong is the code that looks least like it could be. The panes are
+   parked a viewport out on each side, and a transform counts towards the area
+   a page can be scrolled over — so the moment they are built, the document is
+   half again as wide as the screen, and a browser that fits the visual
+   viewport to its content answers `innerWidth` with the new, wider number.
+   Chromium at a phone size answers 716 where it answered 390 a frame earlier.
+   `pageTo` then sent the shelf 716px to cross a 390px screen: the shelf you
+   dragged in swept through the middle and straight out the other side, and
+   the real one appeared in the place it had just left. A page arrives, leaves
+   again, and arrives.
+
+   So the journey is measured, not assumed: where the pane actually is, taken
+   from the pane. It cannot disagree with where the pane has to end up, which
+   is the whole property that was missing. */
+let panStep = 0;
 /* The click that a long press produces lands on whatever is under the finger
    after the grid has been rebuilt in select mode — which is the card you just
    picked, and toggling it would un-pick it. */
@@ -3460,7 +3479,7 @@ addEventListener('touchend', () => {
   if (!p || p.axis !== 'x') return;
   const dir = p.dx < 0 ? 1 : -1;
   const next = shelfAt(dir);
-  if (next && Math.abs(p.dx) > Math.min(innerWidth * PAN_TAKE, 130))
+  if (next && Math.abs(p.dx) > Math.min(panWidth() * PAN_TAKE, 130))
     return pageTo(next, dir);
   settle($('#main'), 'cubic-bezier(.2,.8,.3,1)').then(dropPeeks);
 }, { passive: true });
@@ -3518,8 +3537,23 @@ function buildPeeks(){
       : `<div class="peek-none">${esc(name)} is empty</div>`;
     main.appendChild(el);
   }
+  /* And how far out it landed, asked of the pane. Its own `left` is where it
+     would sit with no transform on it; the difference is the parking, which is
+     the distance the shelf has to travel to put it in the middle. Both rects
+     are read after the drag's transform, which moves the pane and #main by the
+     same amount and therefore cancels out of the subtraction. */
+  const pane = main.querySelector('.peek');
+  if (pane)
+    panStep = Math.abs(pane.getBoundingClientRect().left - main.getBoundingClientRect().left
+                       - parseFloat(getComputedStyle(pane).left || 0));
 }
 const dropPeeks = () => { for (const el of document.querySelectorAll('.peek')) el.remove(); };
+
+/* A screen's width that the panes cannot have moved. `clientWidth` is the
+   layout viewport, which stays put when the document grows; `innerWidth` is
+   the visual one, which does not. Only used before a pane exists to be
+   measured — after that, what the pane says goes. */
+const panWidth = () => panStep || document.documentElement.clientWidth || innerWidth;
 
 /* A long press on a cover would otherwise raise the platform's own menu —
    "save image" and friends — over a gesture that now means something here. */
@@ -3573,7 +3607,7 @@ function settle(el, easing){
    — invisible, since the pane it swaps is already standing in the right place
    — rather than the movement being cut short. */
 function pageTo(name, dir){
-  const main = $('#main'), w = innerWidth;
+  const main = $('#main'), w = panWidth();
   /* The finger's offset is the animation's first frame, and it also stays on
      the element as an inline style until the swap. An animation that has been
      asked to play does not take effect until the compositor hands it a start

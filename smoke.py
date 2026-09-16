@@ -188,18 +188,34 @@ async function smoke(){
       seen.push({ x: at(), shelf: S.shelf, sx: Math.round(scrollX) });
       if (watching) requestAnimationFrame(frame);
     })();
-    /* Where the shelf stood at the instant it was swapped, asked of the swap
-       itself rather than of the frame before it. A headless renderer paints
-       only when something asks it to and a composited animation asks the
-       compositor, so the last frame this samples may be from well before the
-       end of the movement — which says nothing about where the movement got
-       to. `toShelf(name, null)` is the swap; nothing else calls it that way. */
+    /* Where the incoming pane stood at the instant it was swapped for the
+       real shelf, asked of the swap itself rather than of the frame before it:
+       a headless renderer paints only when something asks it to, so the last
+       frame sampled here may be from well before the end of the movement and
+       says nothing about where the movement got to. `toShelf(name, null)` is
+       the swap; nothing else calls it that way. */
     let swapped = null;
     const realToShelf = window.toShelf;
     window.toShelf = function (name, dir) {
-      if (dir === null) swapped = at();
+      if (dir === null) {
+        const pane = main.querySelector('.peek.r');   // paging left
+        swapped = pane ? pane.getBoundingClientRect().left : null;
+      }
       return realToShelf.apply(this, arguments);
     };
+    /* And a lie about how wide the screen is, told for the length of the
+       gesture. This is the bug that got away twice: the panes either side are
+       parked a viewport out, a transform counts towards the area a page can be
+       scrolled over, and a browser that fits the visual viewport to a document
+       that has just grown answers `innerWidth` with the wider number — 716 for
+       a 390px screen, measured. A journey measured with that ruler is nearly
+       twice as long as the screen, so the shelf swept through the middle and
+       out the far side before the real one appeared where it had just been.
+       Nothing in this harness inflates `innerWidth` on its own, so the test
+       inflates it: the shelf must land in the same place regardless. */
+    const realWidth = innerWidth;
+    Object.defineProperty(window, 'innerWidth',
+      { configurable: true, get: () => realWidth * 2 });
     await drag(main, 330, 400, 60, 406);
     /* Run the movement to its end by hand. A composited animation is the
        compositor's to advance and this renderer, which paints only when
@@ -212,18 +228,28 @@ async function smoke(){
     await wait(900);
     watching = false;
     window.toShelf = realToShelf;
+    delete window.innerWidth;                  // back to the real one
     say('a sideways drag pages the shelf', S.shelf === all[3] || S.shelf);
 
     const went = seen.filter(f => f.shelf === all[2]).map(f => f.x);
     say('the shelf arrives once, not twice',
         !went.some((v, i) => i > 0 && went[i - 1] < -10 && v > 10) || went.join(' '));
-    // The preview is swapped for the real shelf in the place it already
-    // occupies, so the swap belongs at the end of the journey: a whole screen
-    // over. Anything short of that is the page being taken away while it is
-    // still crossing, and the shelf arriving twice.
-    say('and it crosses the whole screen first',
-        (swapped !== null && Math.abs(swapped) >= innerWidth - 2)
-        || 'swapped at ' + swapped + ' of ' + -innerWidth);
+    /* And it stops in the middle. The preview is swapped for the real shelf
+       in the place it already occupies, so at the moment of the swap the pane
+       must be standing exactly where the real grid is about to be drawn —
+       which is the one question that catches both ways of getting this wrong.
+       Short of it, the page was taken away while it was still crossing. Past
+       it, the page swept through the middle and out the other side before the
+       real one appeared where it had just been: which is what `innerWidth`
+       bought, a ruler the panes themselves had stretched by being there. */
+    // Where a shelf starts: the inside of the grid's left gutter, which is
+    // the same inset the panes are given. Taken off #main rather than off a
+    // grid, because the shelf paged to may be an empty one with no grid in it.
+    const home = main.getBoundingClientRect().left
+               + parseFloat(getComputedStyle(main).paddingLeft || 0);
+    say('and it stops where the shelf lands',
+        (swapped !== null && home !== null && Math.abs(swapped - home) <= 2)
+        || 'swapped at ' + Math.round(swapped) + ', shelf lands at ' + home);
     // The panes either side are parked a screen-width out, and a transform
     // counts towards what a page can be scrolled over. If that is reachable,
     // the shelf can be dragged and the page panned at the same time, and the
